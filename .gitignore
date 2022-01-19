@@ -138,3 +138,26 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# CMake
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+
+# Build
+cmake-build-*
+_skbuild/
+
+# macOS
+.DS_Store
+
+# Jetbrains
+.idea/
