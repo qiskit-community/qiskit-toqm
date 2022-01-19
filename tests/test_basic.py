@@ -1,4 +1,4 @@
-import scikit_build_example as m
+import qiskit_toqm as m
 
 
 def test_version():

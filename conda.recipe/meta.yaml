@@ -1,5 +1,5 @@
 package:
-  name: scikit_build_example
+  name: qiskit_toqm
   version: 0.0.1
 
 source:
@@ -27,7 +27,7 @@ requirements:
 
 test:
   imports:
-    - scikit_build_example
+    - qiskit_toqm
   requires:
     - pytest
   source_files:
