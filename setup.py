@@ -15,8 +15,8 @@ from setuptools import find_packages
 setup(
     name="qiskit_toqm",
     version="0.0.1",
-    description="a minimal example package (with pybind11)",
-    author="Henry Schreiner",
+    description="Qiskit transpiler passes for the TOQM algorithm",
+    author="IBM and its contributors",
     license="MIT",
     packages=find_packages(where="src"),
     package_dir={"": "src"},

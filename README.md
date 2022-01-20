@@ -1,5 +1,5 @@
-scikit_build_example
-==============
+Qiksit TOQM
+===========
 
 [![Gitter][gitter-badge]][gitter-link]
 
@@ -10,8 +10,7 @@ scikit_build_example
 
 
 
-An example project built with [pybind11](https://github.com/pybind/pybind11) and scikit-build.Python 3.6+ (see older commits for older versions of Python).
-
+[Qiskit Terra](https://github.com/qiskit/qiskit-terra) transpiler passes for the [Time-Optimal Qubit Mapping](https://doi.org/10.1145/3445814.3446706) (TOQM) algorithm.
 
 [gitter-badge]:            https://badges.gitter.im/pybind/Lobby.svg
 [gitter-link]:             https://gitter.im/pybind/Lobby
@@ -27,29 +26,19 @@ Installation
 ------------
 
 - clone this repository
-- `pip install ./scikit_build_example`
+- `pip install ./qiskit-toqm`
 
 
-CI Examples
------------
+Licenses
+--------
 
-There are examples for CI in `.github/workflows`. A simple way to produces
-binary "wheels" for all platforms is illustrated in the "wheels.yml" file,
-using [`cibuildwheel`][].
+qiskit-toqm is provided under the Apache 2.0 license that can be found in
+the LICENSE file.
 
-License
--------
+pybind11 is provided under a BSD-style license that can be found in the LICENSE_pybind
+file.
 
-pybind11 is provided under a BSD-style license that can be found in the LICENSE
-file. By using, distributing, or contributing to this project, you agree to the
-terms and conditions of this license.
-
-Test call
----------
-
-```python
-import scikit_build_example
-scikit_build_example.add(1, 2)
-```
+By using, distributing, or contributing to this project, you agree to the
+terms and conditions of both licenses.
 
 [`cibuildwheel`]:          https://cibuildwheel.readthedocs.io

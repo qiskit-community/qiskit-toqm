@@ -36,5 +36,5 @@ test:
     - pytest tests
 
 about:
-  summary: An example project built with pybind11 and scikit-build.
+  summary: Qiskit transpiler passes for the TOQM algorithm.
   license_file: LICENSE
