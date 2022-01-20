@@ -1,12 +1,17 @@
 cmake_minimum_required(VERSION 3.15...3.19)
 
-project(scikit_build_example VERSION "0.0.1")
 project("qiskit-toqm"
         VERSION 0.1.0
         DESCRIPTION
         "Time-Optimal Qubit Mapping routing pass implementation for Qiskit based on paper \
         https://doi.org/10.1145/3445814.3446706"
         LANGUAGES CXX)
+
+set(BUILD_SHARED_LIBS OFF)
+
+# Set hidden visibility
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
 
 # Build the native code.
 add_subdirectory(libtoqm)
@@ -26,7 +31,7 @@ endif()
 # Now we can find pybind11
 find_package(pybind11 CONFIG REQUIRED)
 
-pybind11_add_module(_core MODULE src/main.cpp)
+pybind11_add_module(_core src/main.cpp)
 target_link_libraries(_core PRIVATE toqm)
 
 target_compile_definitions(_core PRIVATE VERSION_INFO=${PROJECT_VERSION})
