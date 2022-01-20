@@ -7,7 +7,8 @@ project("qiskit-toqm"
         https://doi.org/10.1145/3445814.3446706"
         LANGUAGES CXX)
 
-set(BUILD_SHARED_LIBS OFF)
+# Build libtoqm as position independent so it can be linked into Python module (which is shared lib).
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Set hidden visibility
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
