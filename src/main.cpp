@@ -100,14 +100,14 @@ PYBIND11_MODULE(_core, m) {
 				std::vector<std::unique_ptr<NodeMod>> nms{};
 				nms.reserve(node_mods.size());
 				
-				for (auto & i : node_mods) {
+				for (const auto & i : node_mods) {
 					nms.emplace_back(i.cast<NodeMod*>()->clone());
 				}
 				
 				std::vector<std::unique_ptr<Filter>> fs{};
 				fs.reserve(filters.size());
 				
-				for (auto & i : filters) {
+				for (const auto & i : filters) {
 					fs.emplace_back(i.cast<Filter*>()->clone());
 				}
 				
