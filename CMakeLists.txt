@@ -8,8 +8,6 @@ project("qiskit-toqm"
         https://doi.org/10.1145/3445814.3446706"
         LANGUAGES CXX)
 
-add_compile_options(-fno-omit-frame-pointer -g)
-
 # Build the native code.
 add_subdirectory(libtoqm)
 
