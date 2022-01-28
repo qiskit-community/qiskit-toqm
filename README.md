@@ -29,7 +29,7 @@ Licenses
 qiskit-toqm is provided under the Apache 2.0 license that can be found in
 the LICENSE file.
 
-pybind11 is provided under a BSD-style license that can be found in the LICENSE_pybind
+pybind11 is provided under a BSD-style license that can be found in the LICENSE_pybind11
 file.
 
 By using, distributing, or contributing to this project, you agree to the
