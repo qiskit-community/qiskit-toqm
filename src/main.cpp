@@ -1,5 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/iostream.h>
 
 #include <libtoqm/ToqmMapper.hpp>
 #include <libtoqm/CostFunc/CXFrontier.hpp>
@@ -93,10 +94,6 @@ PYBIND11_MODULE(_core, m) {
 							 const py::list& node_mods,
 							 const py::list& filters) {
 				
-				auto queue_factory = [&]() {
-					return node_queue.clone();
-				};
-				
 				std::vector<std::unique_ptr<NodeMod>> nms{};
 				nms.reserve(node_mods.size());
 				
@@ -112,7 +109,7 @@ PYBIND11_MODULE(_core, m) {
 				}
 				
 				return std::unique_ptr<ToqmMapper>(new ToqmMapper(
-						std::move(queue_factory),
+						node_queue,
 						expander.clone(),
 						cost_func.clone(),
 						latency.clone(),
@@ -125,7 +122,15 @@ PYBIND11_MODULE(_core, m) {
 			.def("setInitialMappingLaq", &ToqmMapper::setInitialMappingLaq)
 			.def("clearInitialMapping", &ToqmMapper::clearInitialMapping)
 			.def("setVerbose", &ToqmMapper::setVerbose)
-			.def("run", &ToqmMapper::run);
+			.def("run", [](const ToqmMapper& self, const std::vector<GateOp> & gate_ops, std::size_t num_qubits,
+						   const CouplingMap & coupling_map) {
+				py::scoped_ostream_redirect stream(
+						std::cout,                               // std::ostream&
+						py::module_::import("sys").attr("stdout") // Python output
+				);
+				
+				return self.run(gate_ops, num_qubits, coupling_map);
+			});
 
 #ifdef VERSION_INFO
     m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
