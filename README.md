@@ -3,14 +3,11 @@ Qiksit TOQM
 
 |      CI              | status |
 |----------------------|--------|
-| conda.recipe         | [![Conda Actions Status][actions-conda-badge]][actions-conda-link] |
 | pip builds           | [![Pip Actions Status][actions-pip-badge]][actions-pip-link] |
 
 [Qiskit Terra](https://github.com/qiskit/qiskit-terra) transpiler passes for the [Time-Optimal Qubit Mapping](https://doi.org/10.1145/3445814.3446706) (TOQM) algorithm.
 
 [actions-badge]:           https://github.com/kevinhartman/qiskit-toqm/workflows/Tests/badge.svg
-[actions-conda-link]:      https://github.com/kevinhartman/qiskit-toqm/actions?query=workflow%3AConda
-[actions-conda-badge]:     https://github.com/kevinhartman/qiskit-toqm/workflows/Conda/badge.svg
 [actions-pip-link]:        https://github.com/kevinhartman/qiskit-toqm/actions?query=workflow%3APip
 [actions-pip-badge]:       https://github.com/kevinhartman/qiskit-toqm/workflows/Pip/badge.svg
 [actions-wheels-link]:     https://github.com/kevinhartman/qiskit-toqm/actions?query=workflow%3AWheels
