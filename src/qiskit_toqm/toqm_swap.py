@@ -94,7 +94,8 @@ class ToqmSwap(TransformationPass):
                 elif len(node.qargs) == 1:
                     yield toqm.GateOp(uid, node.op.name, reg.index(node.qargs[0]))
                 else:
-                    raise "unexpected num gates!"
+                    # TODO: add handling for barrier and measure
+                    raise TranspilerError("Unexpected num gates!")
 
         gate_ops = list(gates())
 
@@ -107,8 +108,7 @@ class ToqmSwap(TransformationPass):
         # Preserve input DAG's name, regs, wire_map, etc. but replace the graph.
         mapped_dag = dag._copy_circuit_metadata()
 
-        for gate in result.scheduledGates:
-            g: toqm.ScheduledGateOp = gate
+        for g in result.scheduledGates:
             if g.gateOp.type.lower() == "swp":
                 mapped_dag.apply_operation_back(SwapGate(), qargs=[reg[g.physicalControl], reg[g.physicalTarget]])
                 continue
@@ -125,7 +125,7 @@ class ToqmSwap(TransformationPass):
                 ])
 
         # Print result
-        # TODO: remove. This is just for debuggin.
+        # TODO: remove. This is just for debugging.
         for g in result.scheduledGates:
             print(f"{g.gateOp.type} ", end='')
             if g.physicalControl >= 0:
