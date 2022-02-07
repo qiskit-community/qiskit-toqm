@@ -33,10 +33,13 @@ PYBIND11_MODULE(_core, m) {
 			.def_readwrite("edges", &CouplingMap::edges);
 	
 	py::class_<GateOp>(m, "GateOp")
-	        .def(py::init<std::string, int, int>())
+	        .def(py::init<int, std::string>())
+			.def(py::init<int, std::string, int>())
+			.def(py::init<int, std::string, int, int>())
+			.def_readwrite("uid", &GateOp::uid)
 			.def_readwrite("type", &GateOp::type)
-			.def_readwrite("target", &GateOp::target)
-			.def_readwrite("control", &GateOp::control);
+			.def_readwrite("control", &GateOp::control)
+			.def_readwrite("target", &GateOp::target);
 	
 	py::class_<ScheduledGateOp>(m, "ScheduledGateOp")
 			.def_readwrite("gateOp", &ScheduledGateOp::gateOp)
@@ -46,7 +49,7 @@ PYBIND11_MODULE(_core, m) {
 			.def_readwrite("latency", &ScheduledGateOp::latency);
 	
 	py::class_<ToqmResult>(m, "ToqmResult")
-			.def_readwrite("scheduledGates", &ToqmResult::scheduledGates)
+			.def_readonly("scheduledGates", &ToqmResult::scheduledGates)
 			.def_readwrite("remainingInQueue", &ToqmResult::remainingInQueue)
 			.def_readwrite("numPhysicalQubits", &ToqmResult::numPhysicalQubits)
 			.def_readwrite("numLogicalQubits", &ToqmResult::numLogicalQubits)
@@ -116,21 +119,11 @@ PYBIND11_MODULE(_core, m) {
 						std::move(nms),
 						std::move(fs)));
 			}))
-			.def("setInitialSearchCycles", &ToqmMapper::setInitialSearchCycles)
 			.def("setRetainPopped", &ToqmMapper::setRetainPopped)
-			.def("setInitialMappingQal", &ToqmMapper::setInitialMappingQal)
-			.def("setInitialMappingLaq", &ToqmMapper::setInitialMappingLaq)
-			.def("clearInitialMapping", &ToqmMapper::clearInitialMapping)
 			.def("setVerbose", &ToqmMapper::setVerbose)
-			.def("run", [](const ToqmMapper& self, const std::vector<GateOp> & gate_ops, std::size_t num_qubits,
-						   const CouplingMap & coupling_map) {
-				py::scoped_ostream_redirect stream(
-						std::cout,                               // std::ostream&
-						py::module_::import("sys").attr("stdout") // Python output
-				);
-				
-				return self.run(gate_ops, num_qubits, coupling_map);
-			});
+			.def("run", static_cast<std::unique_ptr<ToqmResult> (ToqmMapper::*)(const std::vector<GateOp> &, std::size_t, const CouplingMap &) const>(&ToqmMapper::run))
+			.def("run", static_cast<std::unique_ptr<ToqmResult> (ToqmMapper::*)(const std::vector<GateOp> &, std::size_t, const CouplingMap &, int) const>(&ToqmMapper::run))
+			.def("run", static_cast<std::unique_ptr<ToqmResult> (ToqmMapper::*)(const std::vector<GateOp> &, std::size_t, const CouplingMap &, int, const std::vector<int> &) const>(&ToqmMapper::run));
 
 #ifdef VERSION_INFO
     m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

@@ -27,4 +27,4 @@ from ._core import \
     NodeMod, \
     GreedyMapper, \
     ToqmMapper
-from .toqm_swap import ToqmSwap
+from .toqm_swap import ToqmLayoutSettings, ToqmSwap

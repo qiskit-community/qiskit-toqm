@@ -9,21 +9,18 @@
 # Any modifications or derivative works of this code must retain this
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
+import logging
 import qiskit.dagcircuit.dagcircuit
 import qiskit_toqm as toqm
-import logging
-from collections import defaultdict
-from copy import copy, deepcopy
-import numpy as np
 
+from collections import namedtuple
 from qiskit.circuit.library.standard_gates import SwapGate
-from qiskit.circuit.quantumregister import Qubit
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
-from qiskit.transpiler.layout import Layout
-from qiskit.dagcircuit import DAGOpNode
 
 logger = logging.getLogger(__name__)
+
+ToqmLayoutSettings = namedtuple("ToqmLayoutSettings", "search_cycle_limit")
 
 
 class ToqmSwap(TransformationPass):
@@ -38,10 +35,13 @@ class ToqmSwap(TransformationPass):
     `<https://doi.org/10.1145/3445814.3446706>`_
     """
 
-    def __init__(self, coupling_map, initial_search_limit = None):
+    def __init__(self, coupling_map, layout_settings: ToqmLayoutSettings = None):
         r"""ToqmSwap initializer.
         Args:
             coupling_map (CouplingMap): CouplingMap of the target backend.
+            layout_settings (ToqmLayoutSettings): If specified, enables TOQM
+                layout using the specified settings, which modifies
+                property_set['layout'].
         """
         super().__init__()
 
@@ -53,8 +53,15 @@ class ToqmSwap(TransformationPass):
         node_mods = []
 
         self.mapper = toqm.ToqmMapper(queue, expander, cost_func, latency, node_mods, filters)
+        self.mapper.setRetainPopped(0)
+
         self.coupling_map = coupling_map
-        self.initial_search_limit = initial_search_limit
+
+        # If user provided layout settings, use specified search cycle limit.
+        # If limit is specified as None, use -1 for no limit.
+        self.search_cycles = 0 if layout_settings is None else layout_settings.search_cycle_limit
+        if self.search_cycles is None:
+            self.search_cycles = -1
 
     def run(self, dag: qiskit.dagcircuit.dagcircuit.DAGCircuit):
         """Run the ToqmSwap pass on `dag`.
@@ -66,33 +73,26 @@ class ToqmSwap(TransformationPass):
             TranspilerError: if the coupling map or the layout are not
             compatible with the DAG
         """
+        if len(dag.qregs) != 1 or dag.qregs.get("q", None) is None:
+            raise TranspilerError("TOQM swap runs on physical circuits only.")
+
         if len(dag.qubits) > self.coupling_map.size():
             raise TranspilerError("More virtual qubits exist than physical.")
 
-        layout = self.property_set["layout"]
-        if layout is None:
-            self.mapper.clearInitialMapping()
-        else:
-            p2v = layout.get_physical_bits()
-            qal = [p2v[p][1] for p in range(len(p2v))]
-            self.mapper.setInitialMappingQal(qal)
+        reg = dag.qregs["q"]
 
-        # Always use search cycles from user if provided, even if a layout
-        # was also provided. Else, if no layout, do a full search (-1), else skip
-        # search entirely (0).
-        cycles_default = -1 if layout is None else 0
-        search_cycles = cycles_default if self.initial_search_limit is None else self.initial_search_limit
-        self.mapper.setInitialSearchCycles(search_cycles)
+        # Generate UIDs for each gate node from the original circuit so we can
+        # look them up later when rebuilding the circuit.
+        # Note: this is still sorted by topological order from above.
+        uid_to_op_node = {uid: op for uid, op in enumerate(dag.topological_op_nodes())}
 
         # Create TOQM topological gate list
-        qubit_to_vidx = {bit: idx for idx, bit in enumerate(dag.qubits)}
-
         def gates():
-            for node in dag.topological_op_nodes():
+            for uid, node in uid_to_op_node.items():
                 if len(node.qargs) == 2:
-                    yield toqm.GateOp(node.op.name, qubit_to_vidx[node.qargs[1]], qubit_to_vidx[node.qargs[0]])
+                    yield toqm.GateOp(uid, node.op.name, reg.index(node.qargs[0]), reg.index(node.qargs[1]))
                 elif len(node.qargs) == 1:
-                    yield toqm.GateOp(node.op.name, qubit_to_vidx[node.qargs[0]], -1)
+                    yield toqm.GateOp(uid, node.op.name, reg.index(node.qargs[0]))
                 else:
                     raise "unexpected num gates!"
 
@@ -102,10 +102,30 @@ class ToqmSwap(TransformationPass):
         edges = {e for e in self.coupling_map.get_edges()}
         coupling = toqm.CouplingMap(self.coupling_map.size(), edges)
 
-        result = self.mapper.run(gate_ops, dag.num_qubits(), coupling)
+        result: toqm.ToqmResult = self.mapper.run(gate_ops, dag.num_qubits(), coupling, self.search_cycles)
 
-        # TODO: return modified dag
+        # Preserve input DAG's name, regs, wire_map, etc. but replace the graph.
+        mapped_dag = dag._copy_circuit_metadata()
+
+        for gate in result.scheduledGates:
+            g: toqm.ScheduledGateOp = gate
+            if g.gateOp.type.lower() == "swp":
+                mapped_dag.apply_operation_back(SwapGate(), qargs=[reg[g.physicalControl], reg[g.physicalTarget]])
+                continue
+
+            original_op = uid_to_op_node[g.gateOp.uid]
+            if g.physicalControl >= 0:
+                mapped_dag.apply_operation_back(original_op.op, cargs=original_op.cargs, qargs=[
+                    reg[g.physicalControl],
+                    reg[g.physicalTarget]
+                ])
+            else:
+                mapped_dag.apply_operation_back(original_op.op, cargs=original_op.cargs, qargs=[
+                    reg[g.physicalTarget]
+                ])
+
         # Print result
+        # TODO: remove. This is just for debuggin.
         for g in result.scheduledGates:
             print(f"{g.gateOp.type} ", end='')
             if g.physicalControl >= 0:
@@ -122,4 +142,35 @@ class ToqmSwap(TransformationPass):
 
             print()
 
-        return dag
+        if self.search_cycles != 0:
+            self.update_layout(result)
+
+        return mapped_dag
+
+    def update_layout(self, result: toqm.ToqmResult):
+        layout = self.property_set['layout']
+
+        # Need to copy this mapping since layout updates
+        # might overwrite original vbits we need to read!
+        p2v = layout.get_physical_bits().copy()
+
+        # Update the layout if TOQM made changes.
+        for vidx in range(result.numLogicalQubits):
+            pidx = result.inferredLaq[vidx]
+
+            if pidx != vidx:
+                # Bit was remapped!
+                # First, we need to get the original virtual bit from the layout.
+                vbit = p2v[vidx]
+
+                # Then, map updated pidx from TOQM to original virtual bit.
+                layout[pidx] = vbit
+
+        # Bits after the last logical qubit are ancilla.
+        ancilla_vbits = [p2v[vidx] for vidx in range(result.numLogicalQubits, result.numPhysicalQubits)]
+
+        # Map any unmapped physical bits to ancilla.
+        for pidx, vidx in enumerate(result.inferredQal):
+            if vidx < 0:
+                # Current physical bit isn't mapped. Map it to an ancialla.
+                layout[pidx] = ancilla_vbits.pop(0)
