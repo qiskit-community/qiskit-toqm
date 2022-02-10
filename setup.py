@@ -20,7 +20,7 @@ setup(
     license="MIT",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
-    cmake_install_dir="src/qiskit_toqm",
+    cmake_install_dir="src/qiskit_toqm/native",
     include_package_data=True,
     extras_require={"test": ["pytest"]},
     python_requires=">=3.6",

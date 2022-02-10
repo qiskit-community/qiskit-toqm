@@ -10,11 +10,12 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 import logging
-import qiskit.dagcircuit.dagcircuit
-import qiskit_toqm as toqm
+import qiskit_toqm.native as toqm
 
 from collections import namedtuple
 from qiskit.circuit.library.standard_gates import SwapGate
+from qiskit.dagcircuit import DAGCircuit
+
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
 
@@ -52,6 +53,7 @@ class ToqmSwap(TransformationPass):
         filters = [toqm.HashFilter(), toqm.HashFilter2()]
         node_mods = []
 
+        self.toqm_result = None
         self.mapper = toqm.ToqmMapper(queue, expander, cost_func, latency, node_mods, filters)
         self.mapper.setRetainPopped(0)
 
@@ -63,7 +65,7 @@ class ToqmSwap(TransformationPass):
         if self.search_cycles is None:
             self.search_cycles = -1
 
-    def run(self, dag: qiskit.dagcircuit.dagcircuit.DAGCircuit):
+    def run(self, dag: DAGCircuit):
         """Run the ToqmSwap pass on `dag`.
         Args:
             dag (DAGCircuit): the directed acyclic graph to be mapped.
@@ -103,12 +105,12 @@ class ToqmSwap(TransformationPass):
         edges = {e for e in self.coupling_map.get_edges()}
         coupling = toqm.CouplingMap(self.coupling_map.size(), edges)
 
-        result: toqm.ToqmResult = self.mapper.run(gate_ops, dag.num_qubits(), coupling, self.search_cycles)
+        self.toqm_result = self.mapper.run(gate_ops, dag.num_qubits(), coupling, self.search_cycles)
 
         # Preserve input DAG's name, regs, wire_map, etc. but replace the graph.
         mapped_dag = dag._copy_circuit_metadata()
 
-        for g in result.scheduledGates:
+        for g in self.toqm_result.scheduledGates:
             if g.gateOp.type.lower() == "swp":
                 mapped_dag.apply_operation_back(SwapGate(), qargs=[reg[g.physicalControl], reg[g.physicalTarget]])
                 continue
@@ -126,7 +128,7 @@ class ToqmSwap(TransformationPass):
 
         # Print result
         # TODO: remove. This is just for debugging.
-        for g in result.scheduledGates:
+        for g in self.toqm_result.scheduledGates:
             print(f"{g.gateOp.type} ", end='')
             if g.physicalControl >= 0:
                 print(f"q[{g.physicalControl}],", end='')
@@ -143,11 +145,11 @@ class ToqmSwap(TransformationPass):
             print()
 
         if self.search_cycles != 0:
-            self.update_layout(result)
+            self.update_layout()
 
         return mapped_dag
 
-    def update_layout(self, result: toqm.ToqmResult):
+    def update_layout(self):
         layout = self.property_set['layout']
 
         # Need to copy this mapping since layout updates
@@ -155,8 +157,8 @@ class ToqmSwap(TransformationPass):
         p2v = layout.get_physical_bits().copy()
 
         # Update the layout if TOQM made changes.
-        for vidx in range(result.numLogicalQubits):
-            pidx = result.inferredLaq[vidx]
+        for vidx in range(self.toqm_result.numLogicalQubits):
+            pidx = self.toqm_result.inferredLaq[vidx]
 
             if pidx != vidx:
                 # Bit was remapped!
@@ -167,10 +169,10 @@ class ToqmSwap(TransformationPass):
                 layout[pidx] = vbit
 
         # Bits after the last logical qubit are ancilla.
-        ancilla_vbits = [p2v[vidx] for vidx in range(result.numLogicalQubits, result.numPhysicalQubits)]
+        ancilla_vbits = [p2v[vidx] for vidx in range(self.toqm_result.numLogicalQubits, self.toqm_result.numPhysicalQubits)]
 
         # Map any unmapped physical bits to ancilla.
-        for pidx, vidx in enumerate(result.inferredQal):
+        for pidx, vidx in enumerate(self.toqm_result.inferredQal):
             if vidx < 0:
                 # Current physical bit isn't mapped. Map it to an ancialla.
                 layout[pidx] = ancilla_vbits.pop(0)

@@ -32,7 +32,7 @@ endif()
 # Now we can find pybind11
 find_package(pybind11 CONFIG REQUIRED)
 
-pybind11_add_module(_core src/main.cpp)
+pybind11_add_module(_core src/qiskit_toqm/native/main.cpp)
 target_link_libraries(_core PRIVATE toqm)
 
 target_compile_definitions(_core PRIVATE VERSION_INFO=${PROJECT_VERSION})
