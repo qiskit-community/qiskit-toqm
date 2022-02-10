@@ -1,17 +1,19 @@
-import qiskit_toqm as toqm
+import qiskit_toqm.native as toqm
+
 
 def test_version():
     assert toqm.__version__ == "0.1.0"
 
+
 def test_basic():
     num_q = 4
     gates = [
-        toqm.GateOp("cx", 1, 0),
-        toqm.GateOp("cx", 2, 0),
-        toqm.GateOp("cx", 3, 0),
-        toqm.GateOp("cx", 2, 1),
-        toqm.GateOp("cx", 3, 1),
-        toqm.GateOp("cx", 3, 2)
+        toqm.GateOp(0, "cx", 0, 1),
+        toqm.GateOp(1, "cx", 0, 2),
+        toqm.GateOp(2, "cx", 0, 3),
+        toqm.GateOp(3, "cx", 1, 2),
+        toqm.GateOp(4, "cx", 1, 3),
+        toqm.GateOp(5, "cx", 2, 3)
     ]
 
     coupling = toqm.CouplingMap(5, {(0, 1), (0, 2), (1, 2), (2, 3), (2, 4), (3, 4)})
@@ -24,9 +26,9 @@ def test_basic():
     nms = []
 
     mapper = toqm.ToqmMapper(q, exp, cf, lat, nms, fs)
-    mapper.setInitialSearchCycles(-1)
+    mapper.setRetainPopped(0)
 
-    result = mapper.run(gates, num_q, coupling)
+    result = mapper.run(gates, num_q, coupling, -1)
 
     # Print result
     for g in result.scheduledGates:
