@@ -79,7 +79,7 @@ PYBIND11_MODULE(_core, m) {
 	py::class_<Latency_1, Latency>(m, "Latency_1").def(py::init<>());
 	py::class_<Latency_1_2_6, Latency>(m, "Latency_1_2_6").def(py::init<>());
 	py::class_<Latency_1_3, Latency>(m, "Latency_1_3").def(py::init<>());
-	py::class_<Table, Latency>(m, "Table").def(py::init<std::istream&>());
+	py::class_<Table, Latency>(m, "Table").def(py::init<std::vector<LatencyDescription>>());
 	
 	py::class_<NodeMod>(m, "NodeMod");
 	py::class_<GreedyMapper, NodeMod>(m, "GreedyMapper").def(py::init<>());
