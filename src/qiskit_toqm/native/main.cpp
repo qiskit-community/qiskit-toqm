@@ -59,6 +59,17 @@ PYBIND11_MODULE(_core, m) {
 			.def_readwrite("numPopped", &ToqmResult::numPopped)
 			.def_readwrite("filterStats", &ToqmResult::filterStats);
 	
+	py::class_<LatencyDescription>(m, "LatencyDescription")
+			.def(py::init<int, int>())
+			.def(py::init<int, std::string, int>())
+			.def(py::init<std::string, int, int>())
+			.def(py::init<std::string, int, int, int>())
+			.def_readwrite("type", &LatencyDescription::type)
+			.def_readwrite("control", &LatencyDescription::control)
+			.def_readwrite("target", &LatencyDescription::target)
+			.def_readwrite("numQubits", &LatencyDescription::numQubits)
+			.def_readwrite("latency", &LatencyDescription::latency);
+	
 	py::class_<Queue>(m, "Queue");
 	py::class_<DefaultQueue, Queue>(m, "DefaultQueue").def(py::init<>());
 	py::class_<TrimSlowNodes, Queue>(m, "TrimSlowNodes")

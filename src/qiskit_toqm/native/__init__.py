@@ -4,6 +4,7 @@ from ._core import \
     GateOp, \
     CouplingMap, \
     ScheduledGateOp, \
+    LatencyDescription, \
     ToqmResult, \
     Queue, \
     DefaultQueue, \

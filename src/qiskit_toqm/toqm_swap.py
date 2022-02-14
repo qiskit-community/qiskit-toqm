@@ -15,9 +15,14 @@ import qiskit_toqm.native as toqm
 from collections import namedtuple
 from qiskit.circuit.library.standard_gates import SwapGate
 from qiskit.dagcircuit import DAGCircuit
+from qiskit.transpiler import InstructionDurations
 
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
+
+from itertools import chain
+from numpy import interp
+from math import ceil
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +41,7 @@ class ToqmSwap(TransformationPass):
     `<https://doi.org/10.1145/3445814.3446706>`_
     """
 
-    def __init__(self, coupling_map, layout_settings: ToqmLayoutSettings = None):
+    def __init__(self, coupling_map, instruction_durations: InstructionDurations, layout_settings: ToqmLayoutSettings = None):
         r"""ToqmSwap initializer.
         Args:
             coupling_map (CouplingMap): CouplingMap of the target backend.
@@ -44,12 +49,32 @@ class ToqmSwap(TransformationPass):
                 layout using the specified settings, which modifies
                 property_set['layout'].
         """
+        def build_latency_table():
+            max_duration = max(chain(
+                (d for (d, _) in instruction_durations.duration_by_name.values()),
+                (d for (d, _) in instruction_durations.duration_by_name_qubits.values())))
+
+            def lerp(duration):
+                # Linearly interpolate from range [0, max_duration] to [0, 100],
+                # ceiling to next integer (we can't have a fraction of a cycle).
+                # TODO: make 100 a constant at top of file
+                return ceil(interp(duration, [0, max_duration], [0, 100]))
+
+            for (op_name, (duration, _)) in instruction_durations.duration_by_name.items():
+                # We don't know if the instruction is for 1 or 2 qubits, so emit
+                # defaults for both.
+                yield toqm.LatencyDescription(1, op_name, lerp(duration))
+                yield toqm.LatencyDescription(2, op_name, lerp(duration))
+
+            for ((op_name, qubits), (duration, _)) in instruction_durations.duration_by_name_qubits.items():
+                yield toqm.LatencyDescription(op_name, *qubits, lerp(duration))
+
         super().__init__()
 
         queue = toqm.DefaultQueue()
         expander = toqm.DefaultExpander()
         cost_func = toqm.CXFrontier()
-        latency = toqm.Latency_1_2_6()
+        latency = toqm.Table(list(build_latency_table()))
         filters = [toqm.HashFilter(), toqm.HashFilter2()]
         node_mods = []
 
