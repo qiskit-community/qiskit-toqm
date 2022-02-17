@@ -39,7 +39,7 @@ def test_basic():
 
         print(f"//cycle: {g.cycle}", end='')
 
-        if (g.gateOp.type.lower() != "swp"):
+        if (g.gateOp.type.lower() != "swap"):
             print(f" //{g.gateOp.type} ", end='')
             if g.gateOp.control >= 0:
                 print(f"q[{g.gateOp.control}],", end='')

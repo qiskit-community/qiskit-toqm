@@ -10,6 +10,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 import logging
+
+import qiskit
 import qiskit_toqm.native as toqm
 
 from collections import namedtuple
@@ -20,6 +22,7 @@ from qiskit.transpiler import InstructionDurations
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
 
+from collections import defaultdict
 from itertools import chain
 from numpy import interp
 from math import ceil
@@ -41,7 +44,7 @@ class ToqmSwap(TransformationPass):
     `<https://doi.org/10.1145/3445814.3446706>`_
     """
 
-    def __init__(self, coupling_map, instruction_durations: InstructionDurations, layout_settings: ToqmLayoutSettings = None):
+    def __init__(self, coupling_map, instruction_durations: InstructionDurations, basis_gates, backend_properties, layout_settings: ToqmLayoutSettings = None):
         r"""ToqmSwap initializer.
         Args:
             coupling_map (CouplingMap): CouplingMap of the target backend.
@@ -68,6 +71,38 @@ class ToqmSwap(TransformationPass):
 
             for ((op_name, qubits), (duration, _)) in instruction_durations.duration_by_name_qubits.items():
                 yield toqm.LatencyDescription(op_name, *qubits, lerp(duration))
+
+            # Approximate swap latencies
+            for (src, tgt) in coupling_map.get_edges():
+                if ("swap", (src, tgt)) in instruction_durations.duration_by_name_qubits:
+                    # Native swap found. Skip, since it would've already been yielded.
+                    continue
+
+                # Figure out how long a swap takes between these bits on the target
+                qc = qiskit.QuantumCircuit(coupling_map.size())
+                qc.swap(src, tgt)
+
+                res = qiskit.transpile(
+                    qc,
+                    basis_gates=basis_gates,
+                    coupling_map=coupling_map,
+                    backend_properties=backend_properties,
+                    instruction_durations=instruction_durations,
+                    optimization_level=0,
+                    layout_method="trivial",
+                    scheduling_method="asap"
+                )
+
+                if instruction_durations.dt is None and res.unit == "dt":
+                    # TODO: should be able to convert by looking up an op in both
+                    raise TranspilerError("Incompatible units.")
+
+                duration = (
+                    max(res.qubit_stop_time(src), res.qubit_stop_time(tgt))
+                    - min(res.qubit_start_time(src), res.qubit_start_time(tgt))
+                )
+
+                yield toqm.LatencyDescription("swap", src, tgt, lerp(duration))
 
         super().__init__()
 
@@ -127,6 +162,7 @@ class ToqmSwap(TransformationPass):
         gate_ops = list(gates())
 
         # Create TOQM coupling map
+        # TODO: move to init
         edges = {e for e in self.coupling_map.get_edges()}
         coupling = toqm.CouplingMap(self.coupling_map.size(), edges)
 
@@ -136,7 +172,7 @@ class ToqmSwap(TransformationPass):
         mapped_dag = dag._copy_circuit_metadata()
 
         for g in self.toqm_result.scheduledGates:
-            if g.gateOp.type.lower() == "swp":
+            if g.gateOp.type.lower() == "swap":
                 mapped_dag.apply_operation_back(SwapGate(), qargs=[reg[g.physicalControl], reg[g.physicalTarget]])
                 continue
 
@@ -161,7 +197,7 @@ class ToqmSwap(TransformationPass):
 
             print(f"//cycle: {g.cycle}", end='')
 
-            if (g.gateOp.type.lower() != "swp"):
+            if (g.gateOp.type.lower() != "swap"):
                 print(f" //{g.gateOp.type} ", end='')
                 if g.gateOp.control >= 0:
                     print(f"q[{g.gateOp.control}],", end='')
