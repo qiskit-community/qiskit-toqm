@@ -53,9 +53,46 @@ class ToqmSwap(TransformationPass):
                 property_set['layout'].
         """
         def build_latency_table():
+            def calc_swap_durations():
+                # Approximate swap latencies
+                for (src, tgt) in coupling_map.get_edges():
+                    if ("swap", (src, tgt)) in instruction_durations.duration_by_name_qubits:
+                        # Native swap found. Skip, since it will be yielded when enumerating
+                        # duration_by_name_qubits later.
+                        continue
+
+                    # Figure out how long a swap takes between these bits on the target
+                    qc = qiskit.QuantumCircuit(coupling_map.size())
+                    qc.swap(src, tgt)
+
+                    res = qiskit.transpile(
+                        qc,
+                        basis_gates=basis_gates,
+                        coupling_map=coupling_map,
+                        backend_properties=backend_properties,
+                        instruction_durations=instruction_durations,
+                        optimization_level=0,
+                        layout_method="trivial",
+                        scheduling_method="asap"
+                    )
+
+                    if instruction_durations.dt is None and res.unit == "dt":
+                        # TODO: should be able to convert by looking up an op in both
+                        raise TranspilerError("Incompatible units.")
+
+                    duration = (
+                            max(res.qubit_stop_time(src), res.qubit_stop_time(tgt))
+                            - min(res.qubit_start_time(src), res.qubit_start_time(tgt))
+                    )
+
+                    yield src, tgt, duration
+
+            swap_durations = list(calc_swap_durations())
             max_duration = max(chain(
                 (d for (d, _) in instruction_durations.duration_by_name.values()),
-                (d for (d, _) in instruction_durations.duration_by_name_qubits.values())))
+                (d for (d, _) in instruction_durations.duration_by_name_qubits.values()),
+                (d for (_, _, d) in swap_durations)
+            ))
 
             def lerp(duration):
                 # Linearly interpolate from range [0, max_duration] to [0, 100],
@@ -63,6 +100,7 @@ class ToqmSwap(TransformationPass):
                 # TODO: make 100 a constant at top of file
                 return ceil(interp(duration, [0, max_duration], [0, 100]))
 
+            # Yield latency descriptions with durations interpolated to cycles.
             for (op_name, (duration, _)) in instruction_durations.duration_by_name.items():
                 # We don't know if the instruction is for 1 or 2 qubits, so emit
                 # defaults for both.
@@ -72,36 +110,7 @@ class ToqmSwap(TransformationPass):
             for ((op_name, qubits), (duration, _)) in instruction_durations.duration_by_name_qubits.items():
                 yield toqm.LatencyDescription(op_name, *qubits, lerp(duration))
 
-            # Approximate swap latencies
-            for (src, tgt) in coupling_map.get_edges():
-                if ("swap", (src, tgt)) in instruction_durations.duration_by_name_qubits:
-                    # Native swap found. Skip, since it would've already been yielded.
-                    continue
-
-                # Figure out how long a swap takes between these bits on the target
-                qc = qiskit.QuantumCircuit(coupling_map.size())
-                qc.swap(src, tgt)
-
-                res = qiskit.transpile(
-                    qc,
-                    basis_gates=basis_gates,
-                    coupling_map=coupling_map,
-                    backend_properties=backend_properties,
-                    instruction_durations=instruction_durations,
-                    optimization_level=0,
-                    layout_method="trivial",
-                    scheduling_method="asap"
-                )
-
-                if instruction_durations.dt is None and res.unit == "dt":
-                    # TODO: should be able to convert by looking up an op in both
-                    raise TranspilerError("Incompatible units.")
-
-                duration = (
-                    max(res.qubit_stop_time(src), res.qubit_stop_time(tgt))
-                    - min(res.qubit_start_time(src), res.qubit_start_time(tgt))
-                )
-
+            for (src, tgt, duration) in swap_durations:
                 yield toqm.LatencyDescription("swap", src, tgt, lerp(duration))
 
         super().__init__()
