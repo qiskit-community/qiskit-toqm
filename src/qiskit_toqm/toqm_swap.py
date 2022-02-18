@@ -52,87 +52,95 @@ class ToqmSwap(TransformationPass):
                 layout using the specified settings, which modifies
                 property_set['layout'].
         """
-        def build_latency_table():
-            def calc_swap_durations():
-                # Approximate swap latencies
-                for (src, tgt) in coupling_map.get_edges():
-                    if ("swap", (src, tgt)) in instruction_durations.duration_by_name_qubits:
-                        # Native swap found. Skip, since it will be yielded when enumerating
-                        # duration_by_name_qubits later.
-                        continue
-
-                    # Figure out how long a swap takes between these bits on the target
-                    qc = qiskit.QuantumCircuit(coupling_map.size())
-                    qc.swap(src, tgt)
-
-                    res = qiskit.transpile(
-                        qc,
-                        basis_gates=basis_gates,
-                        coupling_map=coupling_map,
-                        backend_properties=backend_properties,
-                        instruction_durations=instruction_durations,
-                        optimization_level=0,
-                        layout_method="trivial",
-                        scheduling_method="asap"
-                    )
-
-                    if instruction_durations.dt is None and res.unit == "dt":
-                        # TODO: should be able to convert by looking up an op in both
-                        raise TranspilerError("Incompatible units.")
-
-                    duration = (
-                            max(res.qubit_stop_time(src), res.qubit_stop_time(tgt))
-                            - min(res.qubit_start_time(src), res.qubit_start_time(tgt))
-                    )
-
-                    yield src, tgt, duration
-
-            swap_durations = list(calc_swap_durations())
-            max_duration = max(chain(
-                (d for (d, _) in instruction_durations.duration_by_name.values()),
-                (d for (d, _) in instruction_durations.duration_by_name_qubits.values()),
-                (d for (_, _, d) in swap_durations)
-            ))
-
-            def lerp(duration):
-                # Linearly interpolate from range [0, max_duration] to [0, 100],
-                # ceiling to next integer (we can't have a fraction of a cycle).
-                # TODO: make 100 a constant at top of file
-                return ceil(interp(duration, [0, max_duration], [0, 100]))
-
-            # Yield latency descriptions with durations interpolated to cycles.
-            for (op_name, (duration, _)) in instruction_durations.duration_by_name.items():
-                # We don't know if the instruction is for 1 or 2 qubits, so emit
-                # defaults for both.
-                yield toqm.LatencyDescription(1, op_name, lerp(duration))
-                yield toqm.LatencyDescription(2, op_name, lerp(duration))
-
-            for ((op_name, qubits), (duration, _)) in instruction_durations.duration_by_name_qubits.items():
-                yield toqm.LatencyDescription(op_name, *qubits, lerp(duration))
-
-            for (src, tgt, duration) in swap_durations:
-                yield toqm.LatencyDescription("swap", src, tgt, lerp(duration))
-
         super().__init__()
 
-        queue = toqm.DefaultQueue()
-        expander = toqm.DefaultExpander()
-        cost_func = toqm.CXFrontier()
-        latency = toqm.Table(list(build_latency_table()))
-        filters = [toqm.HashFilter(), toqm.HashFilter2()]
-        node_mods = []
-
-        self.toqm_result = None
-        self.mapper = toqm.ToqmMapper(queue, expander, cost_func, latency, node_mods, filters)
-        self.mapper.setRetainPopped(0)
-
         self.coupling_map = coupling_map
+        self.instruction_durations = instruction_durations
+        self.basis_gates = basis_gates
+        self.backend_properties = backend_properties
 
         # If user provided layout settings, use specified search cycle limit.
         # If limit is specified as None, use -1 for no limit.
         self.search_cycles = 0 if layout_settings is None else layout_settings.search_cycle_limit
         if self.search_cycles is None:
             self.search_cycles = -1
+
+        queue = toqm.DefaultQueue()
+        expander = toqm.DefaultExpander()
+        cost_func = toqm.CXFrontier()
+        latency = toqm.Table(list(self._build_latency_descriptions()))
+        filters = [toqm.HashFilter(), toqm.HashFilter2()]
+        node_mods = []
+
+        self.mapper = toqm.ToqmMapper(queue, expander, cost_func, latency, node_mods, filters)
+        self.mapper.setRetainPopped(0)
+
+        self.toqm_result = None
+
+    def _calc_swap_durations(self):
+        """Calculates the durations of swap gates between each coupling on the target."""
+        # Filter for couplings that don't already have a native swap.
+        couplings = [
+            c for c in self.coupling_map.get_edges()
+            if ("swap", c) not in self.instruction_durations.duration_by_name_qubits
+        ]
+
+        def gen_swap_circuit(src, tgt):
+            # Generates a circuit with a single swap gate between src and tgt
+            qc = qiskit.QuantumCircuit(self.coupling_map.size())
+            qc.swap(src, tgt)
+            return qc
+
+        # Batch transpile generated swap circuits
+        swap_circuits = qiskit.transpile(
+            [gen_swap_circuit(*pair) for pair in couplings],
+            basis_gates=self.basis_gates,
+            coupling_map=self.coupling_map,
+            backend_properties=self.backend_properties,
+            instruction_durations=self.instruction_durations,
+            optimization_level=0,
+            layout_method="trivial",
+            scheduling_method="asap"
+        )
+
+        for (src, tgt), qc in zip(couplings, swap_circuits):
+            if self.instruction_durations.dt is None and qc.unit == "dt":
+                # TODO: should be able to convert by looking up an op in both
+                raise TranspilerError("Incompatible units.")
+
+            duration = (
+                    max(qc.qubit_stop_time(src), qc.qubit_stop_time(tgt))
+                    - min(qc.qubit_start_time(src), qc.qubit_start_time(tgt))
+            )
+
+            yield src, tgt, duration
+
+    def _build_latency_descriptions(self):
+        swap_durations = list(self._calc_swap_durations())
+        max_duration = max(chain(
+            (d for (d, _) in self.instruction_durations.duration_by_name.values()),
+            (d for (d, _) in self.instruction_durations.duration_by_name_qubits.values()),
+            (d for (_, _, d) in swap_durations)
+        ))
+
+        def lerp(duration):
+            # Linearly interpolate from range [0, max_duration] to [0, 100],
+            # ceiling to next integer (we can't have a fraction of a cycle).
+            # TODO: make 100 a constant at top of file
+            return ceil(interp(duration, [0, max_duration], [0, 100]))
+
+        # Yield latency descriptions with durations interpolated to cycles.
+        for (op_name, (duration, _)) in self.instruction_durations.duration_by_name.items():
+            # We don't know if the instruction is for 1 or 2 qubits, so emit
+            # defaults for both.
+            yield toqm.LatencyDescription(1, op_name, lerp(duration))
+            yield toqm.LatencyDescription(2, op_name, lerp(duration))
+
+        for ((op_name, qubits), (duration, _)) in self.instruction_durations.duration_by_name_qubits.items():
+            yield toqm.LatencyDescription(op_name, *qubits, lerp(duration))
+
+        for (src, tgt, duration) in swap_durations:
+            yield toqm.LatencyDescription("swap", src, tgt, lerp(duration))
 
     def run(self, dag: DAGCircuit):
         """Run the ToqmSwap pass on `dag`.
@@ -215,11 +223,11 @@ class ToqmSwap(TransformationPass):
             print()
 
         if self.search_cycles != 0:
-            self.update_layout()
+            self._update_layout()
 
         return mapped_dag
 
-    def update_layout(self):
+    def _update_layout(self):
         layout = self.property_set['layout']
 
         # Need to copy this mapping since layout updates
