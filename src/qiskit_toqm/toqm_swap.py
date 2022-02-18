@@ -22,7 +22,6 @@ from qiskit.transpiler import InstructionDurations
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
 
-from collections import defaultdict
 from itertools import chain
 from numpy import interp
 from math import ceil
@@ -30,6 +29,8 @@ from math import ceil
 logger = logging.getLogger(__name__)
 
 ToqmLayoutSettings = namedtuple("ToqmLayoutSettings", "search_cycle_limit")
+
+MAX_CYCLES = 1000  # Cycle value for the slowest instruction on the target. Increase for more resolution.
 
 
 class ToqmSwap(TransformationPass):
@@ -116,30 +117,40 @@ class ToqmSwap(TransformationPass):
             yield src, tgt, duration
 
     def _build_latency_descriptions(self):
+        unit = "dt" if self.instruction_durations.dt else "s"
+
         swap_durations = list(self._calc_swap_durations())
+        default_op_durations = [
+            (op_name, self.instruction_durations.get(op_name, [], unit))
+            for op_name in self.instruction_durations.duration_by_name
+        ]
+        op_durations = [
+            (op_name, bits, self.instruction_durations.get(op_name, bits, unit))
+            for (op_name, bits) in self.instruction_durations.duration_by_name_qubits
+        ]
+
         max_duration = max(chain(
-            (d for (d, _) in self.instruction_durations.duration_by_name.values()),
-            (d for (d, _) in self.instruction_durations.duration_by_name_qubits.values()),
+            (d for (_, d) in default_op_durations),
+            (d for (_, _, d) in op_durations),
             (d for (_, _, d) in swap_durations)
         ))
 
         def lerp(duration):
-            # Linearly interpolate from range [0, max_duration] to [0, 100],
+            # Linearly interpolate from range [0, max_duration] to [0, MAX_CYCLES],
             # ceiling to next integer (we can't have a fraction of a cycle).
-            # TODO: make 100 a constant at top of file
-            return ceil(interp(duration, [0, max_duration], [0, 100]))
+            return ceil(interp(duration, [0, max_duration], [0, MAX_CYCLES]))
 
         # Yield latency descriptions with durations interpolated to cycles.
-        for (op_name, (duration, _)) in self.instruction_durations.duration_by_name.items():
+        for op_name, duration in default_op_durations:
             # We don't know if the instruction is for 1 or 2 qubits, so emit
             # defaults for both.
             yield toqm.LatencyDescription(1, op_name, lerp(duration))
             yield toqm.LatencyDescription(2, op_name, lerp(duration))
 
-        for ((op_name, qubits), (duration, _)) in self.instruction_durations.duration_by_name_qubits.items():
+        for op_name, qubits, duration in op_durations:
             yield toqm.LatencyDescription(op_name, *qubits, lerp(duration))
 
-        for (src, tgt, duration) in swap_durations:
+        for src, tgt, duration in swap_durations:
             yield toqm.LatencyDescription("swap", src, tgt, lerp(duration))
 
     def run(self, dag: DAGCircuit):
