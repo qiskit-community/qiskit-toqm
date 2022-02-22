@@ -30,7 +30,10 @@ logger = logging.getLogger(__name__)
 
 ToqmLayoutSettings = namedtuple("ToqmLayoutSettings", "search_cycle_limit")
 
-MAX_CYCLES = 1000  # Cycle value for the slowest instruction on the target. Increase for more resolution.
+# Cycle value cap for the slowest instruction on the target. In practice,
+# the actual value chosen is less, unless all of the target's gate durations
+# very similar.
+MAX_CYCLES = 10000
 
 
 class ToqmSwap(TransformationPass):
@@ -77,6 +80,28 @@ class ToqmSwap(TransformationPass):
         self.mapper.setRetainPopped(0)
 
         self.toqm_result = None
+
+    def _calc_cycle_max(self, durations, max_cycle_limit):
+        """
+        Finds the number of cycles to be used for the slowest gate, such that
+        the smallest difference in duration of the available gates
+        is minimized but >= 1 cycle.
+
+        This value is used as the upper bound of the target cycle range [0, cycle_max] onto which
+        instruction durations are interpolated, which should be just big enough to properly
+        support the resolution of gate duration differences.
+        """
+        durations_asc = sorted(durations)
+        max_duration = durations_asc[-1]
+        smallest_allowed = max_duration / max_cycle_limit
+
+        smallest_diff = float('inf')
+        for d1, d2 in zip(durations_asc, durations_asc[1:]):
+            diff = d2 - d1
+            if smallest_allowed < diff < smallest_diff:
+                smallest_diff = diff
+
+        return ceil(max_duration / smallest_diff)
 
     def _calc_swap_durations(self):
         """Calculates the durations of swap gates between each coupling on the target."""
@@ -129,16 +154,19 @@ class ToqmSwap(TransformationPass):
             for (op_name, bits) in self.instruction_durations.duration_by_name_qubits
         ]
 
-        max_duration = max(chain(
+        durations = list(chain(
             (d for (_, d) in default_op_durations),
             (d for (_, _, d) in op_durations),
             (d for (_, _, d) in swap_durations)
         ))
 
+        max_duration = max(durations)
+        max_cycles = self._calc_cycle_max(durations, MAX_CYCLES)
+
         def lerp(duration):
             # Linearly interpolate from range [0, max_duration] to [0, MAX_CYCLES],
             # ceiling to next integer (we can't have a fraction of a cycle).
-            return ceil(interp(duration, [0, max_duration], [0, MAX_CYCLES]))
+            return ceil(interp(duration, [0, max_duration], [0, max_cycles]))
 
         # Yield latency descriptions with durations interpolated to cycles.
         for op_name, duration in default_op_durations:
