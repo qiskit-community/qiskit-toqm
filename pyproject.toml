@@ -11,3 +11,11 @@ build-backend = "setuptools.build_meta"
 
 [tool.isort]
 profile = "black"
+
+[tool.cibuildwheel]
+manylinux-x86_64-image = "manylinux2014"
+manylinux-i686-image = "manylinux2014"
+test-requires = ["qiskit-terra>=0.19"]
+skip = "pp* cp36-* *musllinux*"
+test-command = "pytest {project}/tests"
+test-extras = ["test"]
