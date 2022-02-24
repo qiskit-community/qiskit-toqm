@@ -30,16 +30,26 @@ logger = logging.getLogger(__name__)
 
 ToqmLayoutSettings = namedtuple("ToqmLayoutSettings", "search_cycle_limit")
 
-# Cycle value cap for the slowest instruction on the target. In practice,
-# the actual value chosen is less, unless all of the target's gate durations
-# very similar.
-MAX_CYCLES = 10000
+# Durations from Qiskit are converted from time units (i.e. dt or s) to cycles
+# (integers) when invoking libtoqm. To convert a duration to cycles, we linearly
+# interpolate from [0, max_duration] to [0, max_cycles], ceiling to the next integer,
+# where max_duration is the Qiskit duration of the longest gate available on the target.
+# The value of max_cycles is chosen such that the interpolated range has the resolution
+# to represent all relative gate durations; no two gates with different durations should
+# end up with the same number of cycles. This is done by determining a scale factor that
+# makes the two closest gate durations >= 1 apart. However, if the value of
+# max_cycles must exceed MAX_CYCLES_LIMIT to satisfy this, the next smallest gate
+# duration difference is used instead. The effect of this is that we use the minimum
+# value possible for max_cycles that supports the best resolution we can have without
+# exceeding MAX_CYCLES_LIMIT. This is important because high cycle values seem to slow
+# libtoqm down quite a bit.
+MAX_CYCLES_LIMIT = 10000
 
 
 class ToqmSwap(TransformationPass):
     r"""Map input circuit onto a backend topology via insertion of SWAPs.
     Implementation of the SWAP-based approach from Time-Optimal Qubit
-    Mapping paper [1] (Algorithm 1).
+    Mapping paper [1].
     **References:**
     [1] Chi Zhang, Ari B. Hayes, Longfei Qiu, Yuwei Jin, Yanhao Chen, and Eddy Z. Zhang. 2021. Time-Optimal Qubit
     Mapping. In Proceedings of the 26th ACM International Conference on Architectural Support for Programming
@@ -48,7 +58,13 @@ class ToqmSwap(TransformationPass):
     `<https://doi.org/10.1145/3445814.3446706>`_
     """
 
-    def __init__(self, coupling_map, instruction_durations: InstructionDurations, basis_gates, backend_properties, layout_settings: ToqmLayoutSettings = None):
+    def __init__(
+            self,
+            coupling_map,
+            instruction_durations: InstructionDurations,
+            basis_gates,
+            backend_properties,
+            layout_settings: ToqmLayoutSettings = None):
         r"""ToqmSwap initializer.
         Args:
             coupling_map (CouplingMap): CouplingMap of the target backend.
@@ -161,10 +177,10 @@ class ToqmSwap(TransformationPass):
         ))
 
         max_duration = max(durations)
-        max_cycles = self._calc_cycle_max(durations, MAX_CYCLES)
+        max_cycles = self._calc_cycle_max(durations, MAX_CYCLES_LIMIT)
 
         def lerp(duration):
-            # Linearly interpolate from range [0, max_duration] to [0, MAX_CYCLES],
+            # Linearly interpolate from range [0, max_duration] to [0, max_cycles],
             # ceiling to next integer (we can't have a fraction of a cycle).
             return ceil(interp(duration, [0, max_duration], [0, max_cycles]))
 
