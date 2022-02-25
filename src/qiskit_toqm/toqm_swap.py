@@ -14,7 +14,6 @@ import logging
 import qiskit
 import qiskit_toqm.native as toqm
 
-from collections import namedtuple
 from qiskit.circuit.library.standard_gates import SwapGate
 from qiskit.dagcircuit import DAGCircuit
 from qiskit.transpiler import InstructionDurations
@@ -27,8 +26,6 @@ from numpy import interp
 from math import ceil
 
 logger = logging.getLogger(__name__)
-
-ToqmLayoutSettings = namedtuple("ToqmLayoutSettings", "search_cycle_limit")
 
 # Durations from Qiskit are converted from time units (i.e. dt or s) to cycles
 # (integers) when invoking libtoqm. To convert a duration to cycles, we linearly
@@ -62,15 +59,30 @@ class ToqmSwap(TransformationPass):
             self,
             coupling_map,
             instruction_durations: InstructionDurations,
-            basis_gates,
-            backend_properties,
-            layout_settings: ToqmLayoutSettings = None):
-        r"""ToqmSwap initializer.
+            search_cycle_limit=0,
+            basis_gates=None,
+            backend_properties=None):
+        """
+        ToqmSwap initializer.
+
         Args:
             coupling_map (CouplingMap): CouplingMap of the target backend.
-            layout_settings (ToqmLayoutSettings): If specified, enables TOQM
-                layout using the specified settings, which modifies
-                property_set['layout'].
+            instruction_durations (InstructionDurations): Durations for gates
+                in the target's basis. Must include durations for all gates
+                that appear in input DAGs other than ``swap`` (for which
+                durations are calculated through decomposition if not supplied).
+            search_cycle_limit (Optional[Int]): Controls layout behavior. A value
+                of ``0`` disables TOQM layout, and can be used if layout has
+                already been performed by an earlier pass. Otherwise, a
+                positive value limits the search for an initial layout to the
+                specified value, and a negative value or ``None`` spends cycles
+                equal to the diameter of the coupling map (full search).
+            basis_gates (Optional[List[str]]): The list of basis gates for the
+                target. Must be specified unless ``instruction_durations``
+                contains durations for all swap gates.
+            backend_properties (Optional[BackendProperties]): The backend
+                properties of the target. Must be specified unless
+                ``instruction_durations`` contains durations for all swap gates.
         """
         super().__init__()
 
@@ -79,16 +91,16 @@ class ToqmSwap(TransformationPass):
         self.basis_gates = basis_gates
         self.backend_properties = backend_properties
 
-        # If user provided layout settings, use specified search cycle limit.
-        # If limit is specified as None, use -1 for no limit.
-        self.search_cycles = 0 if layout_settings is None else layout_settings.search_cycle_limit
-        if self.search_cycles is None:
+        # If user provided, use specified search cycle limit.
+        # If limit is specified as None or negative, use -1 for no limit.
+        self.search_cycles = search_cycle_limit
+        if self.search_cycles is None or self.search_cycles < 0:
             self.search_cycles = -1
 
+        latency = toqm.Table(list(self._build_latency_descriptions()))
         queue = toqm.DefaultQueue()
         expander = toqm.DefaultExpander()
         cost_func = toqm.CXFrontier()
-        latency = toqm.Table(list(self._build_latency_descriptions()))
         filters = [toqm.HashFilter(), toqm.HashFilter2()]
         node_mods = []
 
@@ -126,6 +138,13 @@ class ToqmSwap(TransformationPass):
             c for c in self.coupling_map.get_edges()
             if ("swap", c) not in self.instruction_durations.duration_by_name_qubits
         ]
+
+        backend_aware = self.basis_gates is not None and self.backend_properties is not None
+        if couplings and not backend_aware:
+            raise TranspilerError(
+                "Both 'basis_gates' and 'backend_properties' must be specified unless"
+                "'instruction_durations' has durations for all swap gates."
+            )
 
         def gen_swap_circuit(src, tgt):
             # Generates a circuit with a single swap gate between src and tgt
@@ -228,7 +247,7 @@ class ToqmSwap(TransformationPass):
                 elif len(node.qargs) == 1:
                     yield toqm.GateOp(uid, node.op.name, reg.index(node.qargs[0]))
                 else:
-                    # TODO: add handling for barrier and measure
+                    # TODO: add handling for barriers
                     raise TranspilerError("Unexpected num gates!")
 
         gate_ops = list(gates())

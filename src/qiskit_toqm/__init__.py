@@ -1,1 +1,1 @@
-from .toqm_swap import ToqmLayoutSettings, ToqmSwap
+from .toqm_swap import ToqmSwap
