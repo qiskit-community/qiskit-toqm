@@ -119,9 +119,13 @@ class ToqmSwap(TransformationPass):
         instruction durations are interpolated, which should be just big enough to properly
         support the resolution of gate duration differences.
         """
-        durations_asc = sorted(durations)
+        # Note: there's always an implicit 0-duration gate!
+        durations_asc = sorted(chain([0], durations))
         max_duration = durations_asc[-1]
         smallest_allowed = max_duration / max_cycle_limit
+
+        if smallest_allowed == 0:
+            return 0
 
         smallest_diff = float('inf')
         for d1, d2 in zip(durations_asc, durations_asc[1:]):
@@ -139,8 +143,11 @@ class ToqmSwap(TransformationPass):
             if ("swap", c) not in self.instruction_durations.duration_by_name_qubits
         ]
 
+        if not couplings:
+            return
+
         backend_aware = self.basis_gates is not None and self.backend_properties is not None
-        if couplings and not backend_aware:
+        if not backend_aware:
             raise TranspilerError(
                 "Both 'basis_gates' and 'backend_properties' must be specified unless"
                 "'instruction_durations' has durations for all swap gates."
