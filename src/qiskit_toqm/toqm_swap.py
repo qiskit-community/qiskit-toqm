@@ -109,7 +109,8 @@ class ToqmSwap(TransformationPass):
 
         self.toqm_result = None
 
-    def _calc_cycle_max(self, durations, max_cycle_limit):
+    @staticmethod
+    def _calc_cycle_max(durations, max_cycle_limit):
         """
         Finds the number of cycles to be used for the slowest gate, such that
         the smallest difference in duration of the available gates
@@ -119,20 +120,30 @@ class ToqmSwap(TransformationPass):
         instruction durations are interpolated, which should be just big enough to properly
         support the resolution of gate duration differences.
         """
-        # Note: there's always an implicit 0-duration gate!
-        durations_asc = sorted(chain([0], durations))
+        durations_asc = sorted(durations)
+        if not durations_asc:
+            raise TranspilerError("Durations must be specified for the target.")
+
         max_duration = durations_asc[-1]
         smallest_allowed = max_duration / max_cycle_limit
 
         if smallest_allowed == 0:
-            return 0
+            # can trigger in two cases:
+            #   1. max_duration is 0, in which case we should return 0.
+            #   2. max_cycle_limit is infinity, in which case we should return upper bound, max_duration.
+            return max_duration
 
+        start_dur = 0
         smallest_diff = float('inf')
-        for d1, d2 in zip(durations_asc, durations_asc[1:]):
-            diff = d2 - d1
-            if smallest_allowed < diff < smallest_diff:
+        for dur in durations_asc:
+            diff = dur - start_dur
+            if diff < smallest_allowed:
+                continue
+            if diff < smallest_diff:
                 smallest_diff = diff
+            start_dur = dur
 
+        # ceil to mitigate FP rounding error.
         return ceil(max_duration / smallest_diff)
 
     def _calc_swap_durations(self):
