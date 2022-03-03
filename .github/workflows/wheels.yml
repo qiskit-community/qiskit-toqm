@@ -95,7 +95,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         path: wheelhouse/*.whl
-    - uses: pypa/gh-action-pypi-publish@v1.4.2
+    - uses: pypa/gh-action-pypi-publish@v1.5.0
       with:
         user: __token__
         password: ${{ secrets.pypi_password }}
@@ -127,7 +127,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         path: wheelhouse/*.whl
-    - uses: pypa/gh-action-pypi-publish@v1.4.2
+    - uses: pypa/gh-action-pypi-publish@v1.5.0
       with:
         user: __token__
         password: ${{ secrets.pypi_password }}
@@ -159,7 +159,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         path: wheelhouse/*.whl
-    - uses: pypa/gh-action-pypi-publish@v1.4.2
+    - uses: pypa/gh-action-pypi-publish@v1.5.0
       with:
         user: __token__
         password: ${{ secrets.pypi_password }}
@@ -176,7 +176,7 @@ jobs:
       with:
         name: artifact
         path: dist
-    - uses: pypa/gh-action-pypi-publish@v1.4.2
+    - uses: pypa/gh-action-pypi-publish@v1.5.0
       with:
         user: __token__
         password: ${{ secrets.pypi_password }}
