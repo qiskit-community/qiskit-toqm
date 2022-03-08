@@ -134,13 +134,21 @@ class ToqmSwap(TransformationPass):
             return max_duration
 
         start_dur = 0
+        last_dur = 0
         smallest_diff = float('inf')
         for dur in durations_asc:
-            diff = dur - start_dur
-            if diff < smallest_allowed:
+            cur_diff = dur - last_dur
+            running_diff = dur - start_dur
+            last_dur = dur
+
+            if running_diff < smallest_allowed:
+                # both cur_diff and running_diff are too small, keep going!
                 continue
+
+            diff = cur_diff if cur_diff >= smallest_allowed else running_diff
             if diff < smallest_diff:
                 smallest_diff = diff
+
             start_dur = dur
 
         # ceil to mitigate FP rounding error.
