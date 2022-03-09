@@ -1,99 +1,106 @@
 import unittest
 
 from qiskit_toqm.toqm_swap import ToqmSwap
-
-from qiskit.transpiler import TranspilerError
-from math import ceil
-from numpy import interp
+from qiskit.transpiler import CouplingMap, InstructionDurations, TranspilerError
 
 
-class TestCalcCycleMax(unittest.TestCase):
-    def test_empty_durations(self):
-        with self.assertRaises(TranspilerError):
-            ToqmSwap._calc_cycle_max([], 10000)
+class TestBuildLatencyDescriptions(unittest.TestCase):
+    def setUp(self) -> None:
+        super()
+        self.num_qubits = 3
+        self.coupling_map = CouplingMap.from_line(self.num_qubits)
+        self.basis_gates = ["rz", "x", "cx", "measure"]
 
-    def test_gcf_scaling(self):
-        """
-        Test that cycle max of a non-linear sequence with a gcf is
-        the max duration, reduced by that gcf.
-        """
-        gcf = 3
-        self.assertEqual(
-            ToqmSwap._calc_cycle_max(
-                durations=(x*x*gcf for x in range(100)),
-                max_cycle_limit=10000
-            ),
-            99*99
+        def durations_for_1q(gate, duration, unit="dt"):
+            for i in range(self.num_qubits):
+                yield gate, (i,), duration, unit
+
+        def durations_for_2q(gate, duration, unit="dt"):
+            for i, j in self.coupling_map.get_edges():
+                yield gate, (i, j), duration, unit
+
+        self.durations_for_1q = durations_for_1q
+        self.durations_for_2q = durations_for_2q
+
+    def test_already_normalized(self):
+        """Test that durations are used verbatim when they're already normalized."""
+        durations = InstructionDurations([
+            *self.durations_for_1q("rz", 0),
+            *self.durations_for_1q("x", 1),
+            *self.durations_for_2q("cx", 2),
+            *self.durations_for_2q("swap", 6)
+        ], dt=1)
+
+        swapper = ToqmSwap(self.coupling_map, durations)
+        latencies = list(swapper._build_latency_descriptions())
+
+        self.assertTrue(
+            all(x.latency == 0 for x in latencies if x.type == "rz")
         )
 
-    def test_1_2_6(self):
-        """Test that cycle max of an already-reduced sequence is the max duration."""
-        self.assertEqual(
-            ToqmSwap._calc_cycle_max([1, 2, 6], 10000),
-            6
+        self.assertTrue(
+            all(x.latency == 1 for x in latencies if x.type == "x")
         )
 
-    def test_2_6(self):
-        """
-        Test that cycle max of a sequence with a gcf is the max duration,
-        reduced by that gcf.
-        """
-        self.assertEqual(
-            ToqmSwap._calc_cycle_max([2, 6], 10000),
-            3
+        self.assertTrue(
+            all(x.latency == 2 for x in latencies if x.type == "cx")
         )
 
-    def test_0(self):
-        """
-        Test that cycle max of a sequence of 0 is 0.
-        """
-        self.assertEqual(
-            ToqmSwap._calc_cycle_max([0], 10000),
-            0
+        self.assertTrue(
+            all(x.latency == 6 for x in latencies if x.type == "swap")
         )
 
-    def test_capped_max(self):
-        durations = [i for i in range(101)]
-        self.assertEqual(
-            ToqmSwap._calc_cycle_max(durations, 50),
-            50
+    def test_normalize_s(self):
+        durations = InstructionDurations([
+            *self.durations_for_1q("rz", 0, unit="s"),
+            *self.durations_for_1q("x", 3.5555555555555554e-08, unit="s"),
+            *self.durations_for_2q("cx", 2.2755555555555555e-07, unit="s"),
+            *self.durations_for_2q("swap", 4.977777777777778e-07, unit="s")
+        ])
+
+        swapper = ToqmSwap(self.coupling_map, durations)
+        latencies = list(swapper._build_latency_descriptions())
+
+        self.assertTrue(
+            all(x.latency == 0 for x in latencies if x.type == "rz")
         )
 
-    def test_capped_max_3(self):
-        """
-        Test that duration from 0 can be used as the smallest difference.
-        In this test, the smallest diff (between 1 and 3) is too small
-        :return:
-        """
-        durations = [1, 3, 61]
-
-        res = ToqmSwap._calc_cycle_max(durations, 60)
-        mapped_to_limit = [ceil(x) for x in interp(durations, [0, durations[-1]], [0, 60])]
-        mapped_to_act = [ceil(x) for x in interp(durations, [0, durations[-1]], [0, res])]
-
-        self.assertEqual(
-            ToqmSwap._calc_cycle_max(durations, 60),
-            31
+        self.assertTrue(
+            all(x.latency == 1 for x in latencies if x.type == "x")
         )
 
-    def test_capped_max_2(self):
-        diffs = [
-            5.555e-10,
-            5.
-        ]
-        durations = [
-            3.5555555555555554e-08,
-            2.2755555555555555e-07,
-            2.7e-07,
-            2.702222222222222e-07,
-            3.0577777777777775e-07,
-            4.622222222222222e-07,
-            4.977777777777778e-07,
-        ]
+        self.assertTrue(
+            all(x.latency == 7 for x in latencies if x.type == "cx")
+        )
 
-        cap = 1000
-        res = ToqmSwap._calc_cycle_max(durations, cap)
+        self.assertTrue(
+            all(x.latency == 15 for x in latencies if x.type == "swap")
+        )
 
-        from numpy import interp
-        temp = [ceil(x) for x in interp(durations, [0, durations[-1]], [0, res])]
-        temp2 = [ceil(x) for x in interp(durations, [0, durations[-1]], [0, cap])]
+    def test_missing_swap_durations(self):
+        # Create durations with no swap info
+        durations = InstructionDurations([
+            *self.durations_for_1q("rz", 0),
+            *self.durations_for_1q("x", 1),
+            *self.durations_for_2q("cx", 2)
+        ], dt=1)
+
+        # Attempt to construct ToqmSwap without backend info
+        with self.assertRaisesRegex(TranspilerError, "Both 'basis_gates' and 'backend_properties' must be specified.*"):
+            ToqmSwap(self.coupling_map, durations)
+
+    def test_all_0_durations(self):
+        """
+        Constructing ToqmSwap should fail if all gate durations are 0.
+        """
+        # Create durations such that all instructions finish instantaneously.
+        durations = InstructionDurations([
+            *self.durations_for_1q("rz", 0),
+            *self.durations_for_1q("x", 0),
+            *self.durations_for_2q("cx", 0),
+            *self.durations_for_2q("swap", 0)
+        ], dt=1)
+
+        # Attempt to construct ToqmSwap.
+        with self.assertRaisesRegex(TranspilerError, "Durations must be specified for the target."):
+            ToqmSwap(self.coupling_map, durations)

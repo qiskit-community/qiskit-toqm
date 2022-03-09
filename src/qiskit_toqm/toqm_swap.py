@@ -22,25 +22,19 @@ from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
 
 from itertools import chain
-from numpy import interp
 from math import ceil
 
 logger = logging.getLogger(__name__)
 
-# Durations from Qiskit are converted from time units (i.e. dt or s) to cycles
-# (integers) when invoking libtoqm. To convert a duration to cycles, we linearly
-# interpolate from [0, max_duration] to [0, max_cycles], ceiling to the next integer,
-# where max_duration is the Qiskit duration of the longest gate available on the target.
-# The value of max_cycles is chosen such that the interpolated range has the resolution
-# to represent all relative gate durations; no two gates with different durations should
-# end up with the same number of cycles. This is done by determining a scale factor that
-# makes the two closest gate durations >= 1 apart. However, if the value of
-# max_cycles must exceed MAX_CYCLES_LIMIT to satisfy this, the next smallest gate
-# duration difference is used instead. The effect of this is that we use the minimum
-# value possible for max_cycles that supports the best resolution we can have without
-# exceeding MAX_CYCLES_LIMIT. This is important because high cycle values seem to slow
-# libtoqm down quite a bit.
-MAX_CYCLES_LIMIT = 10000
+# Multiply by this factor when converting relative durations to cycle
+# count.
+#
+# The conversion is:
+#   cycles = ceil(duration * NORMALIZE_SCALE / min_duration)
+#
+# where min_duration is the length of the fastest non-zero duration
+# instruction on the target.
+NORMALIZE_SCALE = 1
 
 
 class ToqmSwap(TransformationPass):
@@ -109,51 +103,6 @@ class ToqmSwap(TransformationPass):
 
         self.toqm_result = None
 
-    @staticmethod
-    def _calc_cycle_max(durations, max_cycle_limit):
-        """
-        Finds the number of cycles to be used for the slowest gate, such that
-        the smallest difference in duration of the available gates
-        is minimized but >= 1 cycle.
-
-        This value is used as the upper bound of the target cycle range [0, cycle_max] onto which
-        instruction durations are interpolated, which should be just big enough to properly
-        support the resolution of gate duration differences.
-        """
-        durations_asc = sorted(durations)
-        if not durations_asc:
-            raise TranspilerError("Durations must be specified for the target.")
-
-        max_duration = durations_asc[-1]
-        smallest_allowed = max_duration / max_cycle_limit
-
-        if smallest_allowed == 0:
-            # can trigger in two cases:
-            #   1. max_duration is 0, in which case we should return 0.
-            #   2. max_cycle_limit is infinity, in which case we should return upper bound, max_duration.
-            return max_duration
-
-        start_dur = 0
-        last_dur = 0
-        smallest_diff = float('inf')
-        for dur in durations_asc:
-            cur_diff = dur - last_dur
-            running_diff = dur - start_dur
-            last_dur = dur
-
-            if running_diff < smallest_allowed:
-                # both cur_diff and running_diff are too small, keep going!
-                continue
-
-            diff = cur_diff if cur_diff >= smallest_allowed else running_diff
-            if diff < smallest_diff:
-                smallest_diff = diff
-
-            start_dur = dur
-
-        # ceil to mitigate FP rounding error.
-        return ceil(max_duration / smallest_diff)
-
     def _calc_swap_durations(self):
         """Calculates the durations of swap gates between each coupling on the target."""
         # Filter for couplings that don't already have a native swap.
@@ -215,32 +164,32 @@ class ToqmSwap(TransformationPass):
             for (op_name, bits) in self.instruction_durations.duration_by_name_qubits
         ]
 
-        durations = list(chain(
+        non_zero_durations = [d for d in chain(
             (d for (_, d) in default_op_durations),
             (d for (_, _, d) in op_durations),
             (d for (_, _, d) in swap_durations)
-        ))
+        ) if d > 0]
 
-        max_duration = max(durations)
-        max_cycles = self._calc_cycle_max(durations, MAX_CYCLES_LIMIT)
+        if not non_zero_durations:
+            raise TranspilerError("Durations must be specified for the target.")
 
-        def lerp(duration):
-            # Linearly interpolate from range [0, max_duration] to [0, max_cycles],
-            # ceiling to next integer (we can't have a fraction of a cycle).
-            return ceil(interp(duration, [0, max_duration], [0, max_cycles]))
+        min_duration = min(non_zero_durations)
+
+        def normalize(duration):
+            return ceil(duration * NORMALIZE_SCALE / min_duration)
 
         # Yield latency descriptions with durations interpolated to cycles.
         for op_name, duration in default_op_durations:
             # We don't know if the instruction is for 1 or 2 qubits, so emit
             # defaults for both.
-            yield toqm.LatencyDescription(1, op_name, lerp(duration))
-            yield toqm.LatencyDescription(2, op_name, lerp(duration))
+            yield toqm.LatencyDescription(1, op_name, normalize(duration))
+            yield toqm.LatencyDescription(2, op_name, normalize(duration))
 
         for op_name, qubits, duration in op_durations:
-            yield toqm.LatencyDescription(op_name, *qubits, lerp(duration))
+            yield toqm.LatencyDescription(op_name, *qubits, normalize(duration))
 
         for src, tgt, duration in swap_durations:
-            yield toqm.LatencyDescription("swap", src, tgt, lerp(duration))
+            yield toqm.LatencyDescription("swap", src, tgt, normalize(duration))
 
     def run(self, dag: DAGCircuit):
         """Run the ToqmSwap pass on `dag`.
