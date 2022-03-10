@@ -22,7 +22,6 @@ from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
 
 from itertools import chain
-from math import ceil
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +175,7 @@ class ToqmSwap(TransformationPass):
         min_duration = min(non_zero_durations)
 
         def normalize(duration):
-            return ceil(duration * NORMALIZE_SCALE / min_duration)
+            return round(duration * NORMALIZE_SCALE / min_duration)
 
         # Yield latency descriptions with durations interpolated to cycles.
         for op_name, duration in default_op_durations:

@@ -23,7 +23,9 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
         self.durations_for_2q = durations_for_2q
 
     def test_already_normalized(self):
-        """Test that durations are used verbatim when they're already normalized."""
+        """
+        Already normalized durations are used as cycle count without conversion.
+        """
         durations = InstructionDurations([
             *self.durations_for_1q("rz", 0),
             *self.durations_for_1q("x", 1),
@@ -51,6 +53,9 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
         )
 
     def test_normalize_s(self):
+        """
+        Durations provided in unit 's' should produce expected cycles.
+        """
         durations = InstructionDurations([
             *self.durations_for_1q("rz", 0, unit="s"),
             *self.durations_for_1q("x", 3.5555555555555554e-08, unit="s"),
@@ -70,14 +75,17 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
         )
 
         self.assertTrue(
-            all(x.latency == 7 for x in latencies if x.type == "cx")
+            all(x.latency == 6 for x in latencies if x.type == "cx")
         )
 
         self.assertTrue(
-            all(x.latency == 15 for x in latencies if x.type == "swap")
+            all(x.latency == 14 for x in latencies if x.type == "swap")
         )
 
     def test_missing_swap_durations(self):
+        """
+        Constructing ToqmSwap without providing swap durations or a backend should fail.
+        """
         # Create durations with no swap info
         durations = InstructionDurations([
             *self.durations_for_1q("rz", 0),
@@ -104,3 +112,67 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
         # Attempt to construct ToqmSwap.
         with self.assertRaisesRegex(TranspilerError, "Durations must be specified for the target."):
             ToqmSwap(self.coupling_map, durations)
+
+    def test_normalize_dt(self):
+        """
+        Not yet normalized durations provided in unit 's' should produce expected cycles.
+        """
+        durations = InstructionDurations([
+            *self.durations_for_1q("rz", 0),
+            *self.durations_for_1q("x", 10),
+            *self.durations_for_2q("cx", 100),
+            *self.durations_for_2q("swap", 152)
+        ], dt=1)
+
+        swapper = ToqmSwap(self.coupling_map, durations)
+        latencies = list(swapper._build_latency_descriptions())
+
+        self.assertTrue(
+            all(x.latency == 0 for x in latencies if x.type == "rz")
+        )
+
+        self.assertTrue(
+            all(x.latency == 1 for x in latencies if x.type == "x")
+        )
+
+        self.assertTrue(
+            all(x.latency == 10 for x in latencies if x.type == "cx")
+        )
+
+        # round(152/10) = 15
+        self.assertTrue(
+            all(x.latency == 15 for x in latencies if x.type == "swap")
+        )
+
+    def test_normalize_close(self):
+        """
+        Durations less than 1x the duration of the shortest duration should round
+        to 1 or 2 depending on magnitude.
+        """
+        durations = InstructionDurations([
+            *self.durations_for_1q("rz", 0),
+            *self.durations_for_1q("x", 3),
+            *self.durations_for_2q("cx", 4),
+            *self.durations_for_2q("swap", 5)
+        ], dt=1)
+
+        swapper = ToqmSwap(self.coupling_map, durations)
+        latencies = list(swapper._build_latency_descriptions())
+
+        self.assertTrue(
+            all(x.latency == 0 for x in latencies if x.type == "rz")
+        )
+
+        self.assertTrue(
+            all(x.latency == 1 for x in latencies if x.type == "x")
+        )
+
+        # round(4/3) = 1
+        self.assertTrue(
+            all(x.latency == 1 for x in latencies if x.type == "cx")
+        )
+
+        # round(5/3) = 2
+        self.assertTrue(
+            all(x.latency == 2 for x in latencies if x.type == "swap")
+        )
