@@ -99,7 +99,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
 
     def test_all_0_durations(self):
         """
-        Durations provided in unit 's' should produce expected cycles.
+        Constructing ToqmSwap should fail if all gate durations are 0.
         """
         # Create durations such that all instructions finish instantaneously.
         durations = InstructionDurations([
