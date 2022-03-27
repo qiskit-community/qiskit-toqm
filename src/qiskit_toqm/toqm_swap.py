@@ -23,7 +23,10 @@ from qiskit.transpiler.exceptions import TranspilerError
 
 from itertools import chain
 
+from .toqm_profile import ToqmProfile, ToqmProfileO1
+
 logger = logging.getLogger(__name__)
+
 
 # Multiply by this factor when converting relative durations to cycle
 # count.
@@ -51,8 +54,9 @@ class ToqmSwap(TransformationPass):
     def __init__(
             self,
             coupling_map,
-            instruction_durations: InstructionDurations,
-            search_cycle_limit=0,
+            instruction_durations,
+            perform_layout,
+            optimization_profile=None,
             basis_gates=None,
             backend_properties=None):
         """
@@ -64,12 +68,12 @@ class ToqmSwap(TransformationPass):
                 in the target's basis. Must include durations for all gates
                 that appear in input DAGs other than ``swap`` (for which
                 durations are calculated through decomposition if not supplied).
-            search_cycle_limit (Optional[Int]): Controls layout behavior. A value
-                of ``0`` disables TOQM layout, and can be used if layout has
-                already been performed by an earlier pass. Otherwise, a
-                positive value limits the search for an initial layout to the
-                specified value, and a negative value or ``None`` spends cycles
-                equal to the diameter of the coupling map (full search).
+            perform_layout (bool): Enables initial layout search.
+                When true, updates ``self.property_set['layout']`` with the
+                determined initial layout.
+            optimization_profile (Optional[ToqmProfile]):
+                The profile to use when constructing the native ToqmMapper
+                instance. Defaults to ``ToqmProfileO1()``.
             basis_gates (Optional[List[str]]): The list of basis gates for the
                 target. Must be specified unless ``instruction_durations``
                 contains durations for all swap gates.
@@ -79,28 +83,25 @@ class ToqmSwap(TransformationPass):
         """
         super().__init__()
 
+        if coupling_map is None:
+            # We cannot construct a proper TOQM mapper without a coupling map,
+            # but we gracefully handle construction without one, and then
+            # assert that `run` is never called on this instance.
+            return
+
+        if coupling_map.size() > 127:
+            raise TranspilerError("ToqmSwap currently supports a max of 127 qubits.")
+
         self.coupling_map = coupling_map
         self.instruction_durations = instruction_durations
+        self.perform_layout = perform_layout
         self.basis_gates = basis_gates
         self.backend_properties = backend_properties
-
-        # If user provided, use specified search cycle limit.
-        # If limit is specified as None or negative, use -1 for no limit.
-        self.search_cycles = search_cycle_limit
-        if self.search_cycles is None or self.search_cycles < 0:
-            self.search_cycles = -1
-
-        latency = toqm.Table(list(self._build_latency_descriptions()))
-        queue = toqm.DefaultQueue()
-        expander = toqm.DefaultExpander()
-        cost_func = toqm.CXFrontier()
-        filters = [toqm.HashFilter(), toqm.HashFilter2()]
-        node_mods = []
-
-        self.mapper = toqm.ToqmMapper(queue, expander, cost_func, latency, node_mods, filters)
-        self.mapper.setRetainPopped(0)
-
+        self.optimization_profile = optimization_profile or ToqmProfileO1()
         self.toqm_result = None
+
+        latency_descriptions = list(self._build_latency_descriptions())
+        self.optimization_profile.on_pass_init(perform_layout, coupling_map, latency_descriptions)
 
     def _calc_swap_durations(self):
         """Calculates the durations of swap gates between each coupling on the target."""
@@ -120,11 +121,11 @@ class ToqmSwap(TransformationPass):
                 "'instruction_durations' has durations for all swap gates."
             )
 
-        def gen_swap_circuit(src, tgt):
+        def gen_swap_circuit(s, t):
             # Generates a circuit with a single swap gate between src and tgt
-            qc = qiskit.QuantumCircuit(self.coupling_map.size())
-            qc.swap(src, tgt)
-            return qc
+            c = qiskit.QuantumCircuit(self.coupling_map.size())
+            c.swap(s, t)
+            return c
 
         # Batch transpile generated swap circuits
         swap_circuits = qiskit.transpile(
@@ -174,8 +175,8 @@ class ToqmSwap(TransformationPass):
 
         min_duration = min(non_zero_durations)
 
-        def normalize(duration):
-            return round(duration * NORMALIZE_SCALE / min_duration)
+        def normalize(d):
+            return round(d * NORMALIZE_SCALE / min_duration)
 
         # Yield latency descriptions with durations interpolated to cycles.
         for op_name, duration in default_op_durations:
@@ -200,6 +201,15 @@ class ToqmSwap(TransformationPass):
             TranspilerError: if the coupling map or the layout are not
             compatible with the DAG
         """
+        if self.coupling_map is None:
+            raise TranspilerError("TOQM swap not properly initialized.")
+
+        if self.instruction_durations is None or (
+                not self.instruction_durations.duration_by_name_qubits
+                and not self.instruction_durations.duration_by_name
+        ):
+            raise TranspilerError("Instruction durations must be specified for this pass!")
+
         if len(dag.qregs) != 1 or dag.qregs.get("q", None) is None:
             raise TranspilerError("TOQM swap runs on physical circuits only.")
 
@@ -221,8 +231,8 @@ class ToqmSwap(TransformationPass):
                 elif len(node.qargs) == 1:
                     yield toqm.GateOp(uid, node.op.name, reg.index(node.qargs[0]))
                 else:
-                    # TODO: add handling for barriers
-                    raise TranspilerError("Unexpected num gates!")
+                    raise TranspilerError(f"ToqmSwap only works with 1q and 2q gates! "
+                                          f"Bad gate: {node.op.name} {node.qargs}")
 
         gate_ops = list(gates())
 
@@ -231,7 +241,8 @@ class ToqmSwap(TransformationPass):
         edges = {e for e in self.coupling_map.get_edges()}
         coupling = toqm.CouplingMap(self.coupling_map.size(), edges)
 
-        self.toqm_result = self.mapper.run(gate_ops, dag.num_qubits(), coupling, self.search_cycles)
+        mapper = self.optimization_profile.get_mapper(dag)
+        self.toqm_result = mapper.run(gate_ops, dag.num_qubits(), coupling)
 
         # Preserve input DAG's name, regs, wire_map, etc. but replace the graph.
         mapped_dag = dag._copy_circuit_metadata()
@@ -270,7 +281,7 @@ class ToqmSwap(TransformationPass):
 
             print()
 
-        if self.search_cycles != 0:
+        if self.perform_layout:
             self._update_layout()
 
         return mapped_dag
@@ -295,7 +306,10 @@ class ToqmSwap(TransformationPass):
                 layout[pidx] = vbit
 
         # Bits after the last logical qubit are ancilla.
-        ancilla_vbits = [p2v[vidx] for vidx in range(self.toqm_result.numLogicalQubits, self.toqm_result.numPhysicalQubits)]
+        ancilla_vbits = [
+            p2v[vidx]
+            for vidx in range(self.toqm_result.numLogicalQubits, self.toqm_result.numPhysicalQubits)
+        ]
 
         # Map any unmapped physical bits to ancilla.
         for pidx, vidx in enumerate(self.toqm_result.inferredQal):
