@@ -23,7 +23,7 @@ from qiskit.transpiler.exceptions import TranspilerError
 
 from itertools import chain
 
-from .toqm_profile import ToqmProfile, ToqmProfileO1
+from .toqm_strategy import ToqmStrategy, ToqmStrategyO1
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class ToqmSwap(TransformationPass):
             coupling_map,
             instruction_durations,
             perform_layout,
-            optimization_profile=None,
+            strategy=None,
             basis_gates=None,
             backend_properties=None):
         """
@@ -71,9 +71,9 @@ class ToqmSwap(TransformationPass):
             perform_layout (bool): Enables initial layout search.
                 When true, updates ``self.property_set['layout']`` with the
                 determined initial layout.
-            optimization_profile (Optional[ToqmProfile]):
-                The profile to use when constructing the native ToqmMapper
-                instance. Defaults to ``ToqmProfileO1()``.
+            strategy (Optional[ToqmStrategy]):
+                The strategy to use when invoking the native ToqmMapper.
+                Defaults to ``ToqmStrategyO1()``.
             basis_gates (Optional[List[str]]): The list of basis gates for the
                 target. Must be specified unless ``instruction_durations``
                 contains durations for all swap gates.
@@ -97,11 +97,14 @@ class ToqmSwap(TransformationPass):
         self.perform_layout = perform_layout
         self.basis_gates = basis_gates
         self.backend_properties = backend_properties
-        self.optimization_profile = optimization_profile or ToqmProfileO1()
+        self.toqm_strategy = strategy or ToqmStrategyO1()
         self.toqm_result = None
 
+        edges = {e for e in self.coupling_map.get_edges()}
+        couplings = toqm.CouplingMap(self.coupling_map.size(), edges)
         latency_descriptions = list(self._build_latency_descriptions())
-        self.optimization_profile.on_pass_init(perform_layout, coupling_map, latency_descriptions)
+
+        self.toqm_strategy.on_pass_init(perform_layout, couplings, latency_descriptions)
 
     def _calc_swap_durations(self):
         """Calculates the durations of swap gates between each coupling on the target."""
@@ -235,14 +238,7 @@ class ToqmSwap(TransformationPass):
                                           f"Bad gate: {node.op.name} {node.qargs}")
 
         gate_ops = list(gates())
-
-        # Create TOQM coupling map
-        # TODO: move to init
-        edges = {e for e in self.coupling_map.get_edges()}
-        coupling = toqm.CouplingMap(self.coupling_map.size(), edges)
-
-        mapper = self.optimization_profile.get_mapper(dag)
-        self.toqm_result = mapper.run(gate_ops, dag.num_qubits(), coupling)
+        self.toqm_result = self.toqm_strategy.run(gate_ops, dag.num_qubits())
 
         # Preserve input DAG's name, regs, wire_map, etc. but replace the graph.
         mapped_dag = dag._copy_circuit_metadata()
