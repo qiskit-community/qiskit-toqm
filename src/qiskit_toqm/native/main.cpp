@@ -105,7 +105,8 @@ PYBIND11_MODULE(_core, m) {
 							 const CostFunc& cost_func,
 							 const Latency& latency,
 							 const py::list& node_mods,
-							 const py::list& filters) {
+							 const py::list& filters,
+							 int initial_search_cycles) {
 				
 				std::vector<std::unique_ptr<NodeMod>> nms{};
 				nms.reserve(node_mods.size());
@@ -127,13 +128,13 @@ PYBIND11_MODULE(_core, m) {
 						cost_func.clone(),
 						latency.clone(),
 						std::move(nms),
-						std::move(fs)));
+						std::move(fs),
+						initial_search_cycles));
 			}))
 			.def("setRetainPopped", &ToqmMapper::setRetainPopped)
 			.def("setVerbose", &ToqmMapper::setVerbose)
 			.def("run", static_cast<std::unique_ptr<ToqmResult> (ToqmMapper::*)(const std::vector<GateOp> &, std::size_t, const CouplingMap &) const>(&ToqmMapper::run))
-			.def("run", static_cast<std::unique_ptr<ToqmResult> (ToqmMapper::*)(const std::vector<GateOp> &, std::size_t, const CouplingMap &, int) const>(&ToqmMapper::run))
-			.def("run", static_cast<std::unique_ptr<ToqmResult> (ToqmMapper::*)(const std::vector<GateOp> &, std::size_t, const CouplingMap &, int, const std::vector<int> &) const>(&ToqmMapper::run));
+			.def("run", static_cast<std::unique_ptr<ToqmResult> (ToqmMapper::*)(const std::vector<GateOp> &, std::size_t, const CouplingMap &, const std::vector<int> &) const>(&ToqmMapper::run));
 
 #ifdef VERSION_INFO
     m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

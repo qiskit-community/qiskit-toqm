@@ -28,10 +28,10 @@ class TestTOQM(unittest.TestCase):
         fs = [toqm.HashFilter(), toqm.HashFilter2()]
         nms = []
 
-        mapper = toqm.ToqmMapper(q, exp, cf, lat, nms, fs)
+        mapper = toqm.ToqmMapper(q, exp, cf, lat, nms, fs, -1)
         mapper.setRetainPopped(0)
 
-        result = mapper.run(gates, num_q, coupling, -1)
+        result = mapper.run(gates, num_q, coupling)
 
         # Print result
         for g in result.scheduledGates:
