@@ -1,4 +1,4 @@
-Qiksit TOQM
+Qiskit TOQM
 ===========
 
 |      CI              | status |

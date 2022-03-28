@@ -241,7 +241,7 @@ class ToqmSwap(TransformationPass):
         self.toqm_result = self.toqm_strategy.run(gate_ops, dag.num_qubits())
 
         # Preserve input DAG's name, regs, wire_map, etc. but replace the graph.
-        mapped_dag = dag._copy_circuit_metadata()
+        mapped_dag = dag.copy_empty_like()
 
         for g in self.toqm_result.scheduledGates:
             if g.gateOp.type.lower() == "swap":
