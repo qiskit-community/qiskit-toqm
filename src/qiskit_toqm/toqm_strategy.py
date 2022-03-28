@@ -99,7 +99,7 @@ class ToqmStrategyO1(ToqmStrategy):
         self.threshold = optimality_threshold
 
     def run(self, gates, num_qubits):
-        if self.coupling_map.size < self.threshold:
+        if self.coupling_map.numPhysicalQubits < self.threshold:
             mapper = self._default_optimal_mapper()
         else:
             mapper = self._default_heuristic_mapper(2000, 1000, 10)
@@ -120,7 +120,7 @@ class ToqmStrategyO2(ToqmStrategy):
         self.threshold = optimality_threshold
 
     def run(self, gates, num_qubits):
-        if self.coupling_map.size < self.threshold:
+        if self.coupling_map.numPhysicalQubits < self.threshold:
             mapper = self._default_optimal_mapper()
         else:
             mapper = self._default_heuristic_mapper(3000, 2000, 10)
@@ -141,7 +141,7 @@ class ToqmStrategyO3(ToqmStrategy):
         self.threshold = optimality_threshold
 
     def run(self, gates, num_qubits):
-        if self.coupling_map.size < self.threshold:
+        if self.coupling_map.numPhysicalQubits < self.threshold:
             # try no swaps first
             try:
                 return self._default_optimal_mapper_no_swaps().run(gates, num_qubits, self.coupling_map)
