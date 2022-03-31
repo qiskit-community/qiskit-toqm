@@ -277,8 +277,9 @@ class ToqmSwap(TransformationPass):
 
             print()
 
-        if self.perform_layout:
-            self._update_layout()
+        # TODO: we should be able to skip this if self.perform_layout is False
+        #   once this bug is fixed: https://github.com/qiskit-toqm/libtoqm/issues/12
+        self._update_layout()
 
         return mapped_dag
 
@@ -290,8 +291,14 @@ class ToqmSwap(TransformationPass):
         p2v = layout.get_physical_bits().copy()
 
         # Update the layout if TOQM made changes.
-        for vidx in range(self.toqm_result.numLogicalQubits):
+        ancilla_vbits = []
+        for vidx in range(self.toqm_result.numPhysicalQubits):
             pidx = self.toqm_result.inferredLaq[vidx]
+
+            if pidx == -1:
+                # bit is not mapped to physical qubit
+                ancilla_vbits.append(p2v[vidx])
+                continue
 
             if pidx != vidx:
                 # Bit was remapped!
@@ -301,14 +308,8 @@ class ToqmSwap(TransformationPass):
                 # Then, map updated pidx from TOQM to original virtual bit.
                 layout[pidx] = vbit
 
-        # Bits after the last logical qubit are ancilla.
-        ancilla_vbits = [
-            p2v[vidx]
-            for vidx in range(self.toqm_result.numLogicalQubits, self.toqm_result.numPhysicalQubits)
-        ]
-
         # Map any unmapped physical bits to ancilla.
         for pidx, vidx in enumerate(self.toqm_result.inferredQal):
             if vidx < 0:
-                # Current physical bit isn't mapped. Map it to an ancialla.
+                # Current physical bit isn't mapped. Map it to an ancilla.
                 layout[pidx] = ancilla_vbits.pop(0)
