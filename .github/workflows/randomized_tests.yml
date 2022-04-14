@@ -15,19 +15,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          path: qiskit-toqm
+      - name: Install qiskit-toqm
+        run: pip install .
+        working-directory: qiskit-toqm
+      - uses: actions/checkout@v2
+        with:
+          repository: qiskit/qiskit-terra
+          path: qiskit-terra
       - uses: actions/setup-python@v2
         name: Install Python
         with:
           python-version: '3.8'
       - name: Install dependencies
+        working-directory: qiskit-terra
         run: |
           pip install -U -r requirements.txt -c constraints.txt
           pip install -U -r requirements-dev.txt coveralls -c constraints.txt
           pip install -c constraints.txt -e .
-          pip install "qiskit-terra"
           pip install "qiskit-ibmq-provider" -c constraints.txt
           pip install "qiskit-aer"
       - name: Run randomized tests
+        working-directory: qiskit-terra
         run: python3 -m unittest discover -s test/randomized -t . -v
       - name: Create comment on failed test run
         if: ${{ failure() }}
