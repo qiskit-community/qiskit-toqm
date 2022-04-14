@@ -1,5 +1,8 @@
 name: Randomized tests
 on:
+  pull_request:
+    branches:
+      - '*'
   push:
     branches:
       - '*'
