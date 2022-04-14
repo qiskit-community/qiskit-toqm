@@ -1,6 +1,8 @@
 name: Randomized tests
 on:
   push:
+    branches:
+      - '*'
   schedule:
     - cron:  '42 3 * * *'
   workflow_dispatch:
