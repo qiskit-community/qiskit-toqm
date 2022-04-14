@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           path: qiskit-toqm
+          submodules: 'recursive'
       - name: Install qiskit-toqm
         run: pip install .
         working-directory: qiskit-toqm
