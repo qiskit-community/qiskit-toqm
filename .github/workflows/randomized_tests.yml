@@ -23,7 +23,8 @@ jobs:
         working-directory: qiskit-toqm
       - uses: actions/checkout@v2
         with:
-          repository: qiskit/qiskit-terra
+          repository: kevinhartman/qiskit-terra
+          ref: test/toqm-equiv
           path: qiskit-terra
       - uses: actions/setup-python@v2
         name: Install Python
