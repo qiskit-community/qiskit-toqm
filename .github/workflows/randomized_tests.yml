@@ -40,6 +40,11 @@ jobs:
       - name: Run randomized tests
         working-directory: qiskit-terra
         run: python3 -m unittest discover -s test/randomized -t . -v
+        env:
+          QISKIT_RANDOMIZED_TEST_LAYOUT_METHODS: 'toqm'
+          QISKIT_RANDOMIZED_TEST_ROUTING_METHODS: 'toqm'
+          QISKIT_RANDOMIZED_TEST_BACKEND_NEEDS_DURATIONS: 'True'
+          QISKIT_RANDOMIZED_TEST_ALLOW_BARRIERS: 'False'
       - name: Create comment on failed test run
         if: ${{ failure() }}
         uses: peter-evans/create-or-update-comment@v1
