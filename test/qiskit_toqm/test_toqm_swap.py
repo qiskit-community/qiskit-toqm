@@ -45,15 +45,15 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
         )
 
         self.assertTrue(
-            all(x.latency == 1 for x in latencies if x.type == "x")
+            all(x.latency == 2 for x in latencies if x.type == "x")
         )
 
         self.assertTrue(
-            all(x.latency == 2 for x in latencies if x.type == "cx")
+            all(x.latency == 4 for x in latencies if x.type == "cx")
         )
 
         self.assertTrue(
-            all(x.latency == 6 for x in latencies if x.type == "swap")
+            all(x.latency == 12 for x in latencies if x.type == "swap")
         )
 
     def test_normalize_s(self):
@@ -75,15 +75,15 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
         )
 
         self.assertTrue(
-            all(x.latency == 1 for x in latencies if x.type == "x")
+            all(x.latency == 2 for x in latencies if x.type == "x")
         )
 
         self.assertTrue(
-            all(x.latency == 6 for x in latencies if x.type == "cx")
+            all(x.latency == 13 for x in latencies if x.type == "cx")
         )
 
         self.assertTrue(
-            all(x.latency == 14 for x in latencies if x.type == "swap")
+            all(x.latency == 28 for x in latencies if x.type == "swap")
         )
 
     def test_missing_swap_durations(self):
@@ -136,16 +136,16 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
         )
 
         self.assertTrue(
-            all(x.latency == 1 for x in latencies if x.type == "x")
+            all(x.latency == 2 for x in latencies if x.type == "x")
         )
 
         self.assertTrue(
-            all(x.latency == 10 for x in latencies if x.type == "cx")
+            all(x.latency == 20 for x in latencies if x.type == "cx")
         )
 
-        # round(152/10) = 15
+        # round(152*2/10) = 30
         self.assertTrue(
-            all(x.latency == 15 for x in latencies if x.type == "swap")
+            all(x.latency == 30 for x in latencies if x.type == "swap")
         )
 
     def test_normalize_close(self):
@@ -168,15 +168,15 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
         )
 
         self.assertTrue(
-            all(x.latency == 1 for x in latencies if x.type == "x")
+            all(x.latency == 2 for x in latencies if x.type == "x")
         )
 
-        # round(4/3) = 1
+        # round(4*2/3) = 3
         self.assertTrue(
-            all(x.latency == 1 for x in latencies if x.type == "cx")
+            all(x.latency == 3 for x in latencies if x.type == "cx")
         )
 
-        # round(5/3) = 2
+        # round(5*2/3) = 3
         self.assertTrue(
-            all(x.latency == 2 for x in latencies if x.type == "swap")
+            all(x.latency == 3 for x in latencies if x.type == "swap")
         )
