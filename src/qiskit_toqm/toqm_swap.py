@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 #
 # where min_duration is the length of the fastest non-zero duration
 # instruction on the target.
-NORMALIZE_SCALE = 1
+NORMALIZE_SCALE = 2
 
 
 class ToqmSwap(TransformationPass):

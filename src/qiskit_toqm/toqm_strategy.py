@@ -71,12 +71,16 @@ class ToqmStrategy:
             -1 if self.perform_layout else 0
         )
 
+    # NOTE: currently, the heuristic mapper uses the hard-coded latencies of 1, 2 and 6
+    # for 1Q, 2Q and SWAP gates, respectively. This is because when gate-specific latencies
+    # are used with heuristic components, the run sometimes never terminates.
+    # This is tracked here: https://github.com/qiskit-toqm/libtoqm/issues/15
     def _default_heuristic_mapper(self, max_nodes, min_nodes, k):
         mapper = toqm.ToqmMapper(
             toqm.TrimSlowNodes(max_nodes, min_nodes),
             toqm.GreedyTopK(k),
             toqm.CXFrontier(),
-            toqm.Table(self.latency_descriptions),
+            toqm.Latency_1_2_6(),
             [toqm.GreedyMapper()],
             [],
             -1 if self.perform_layout else 0
@@ -123,13 +127,13 @@ class ToqmStrategyO2(ToqmStrategy):
         if self.coupling_map.numPhysicalQubits < self.threshold:
             mapper = self._default_optimal_mapper()
         else:
-            mapper = self._default_heuristic_mapper(3000, 2000, 10)
+            mapper = self._default_heuristic_mapper(3000, 1200, 10)
 
         return mapper.run(gates, num_qubits, self.coupling_map)
 
 
 class ToqmStrategyO3(ToqmStrategy):
-    def __init__(self, optimality_threshold=7):
+    def __init__(self, optimality_threshold=6):
         """
         Initializer.
 
@@ -148,6 +152,6 @@ class ToqmStrategyO3(ToqmStrategy):
             except RuntimeError:
                 mapper = self._default_optimal_mapper()
         else:
-            mapper = self._default_heuristic_mapper(4000, 3000, 15)
+            mapper = self._default_heuristic_mapper(4500, 1200, 10)
 
         return mapper.run(gates, num_qubits, self.coupling_map)
