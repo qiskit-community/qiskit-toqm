@@ -2,10 +2,7 @@ name: Randomized tests
 on:
   pull_request:
     branches:
-      - '*'
-  push:
-    branches:
-      - '*'
+      - 'main'
   schedule:
     - cron:  '42 3 * * *'
   workflow_dispatch:
@@ -15,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        name: Clone Qiskit TOQM
         with:
           path: qiskit-toqm
           submodules: 'recursive'
@@ -22,9 +20,10 @@ jobs:
         run: pip install .
         working-directory: qiskit-toqm
       - uses: actions/checkout@v2
+        name: Clone Terra
         with:
-          repository: kevinhartman/qiskit-terra
-          ref: test/toqm-equiv
+          repository: qiskit/qiskit-terra
+          ref: main
           path: qiskit-terra
       - uses: actions/setup-python@v2
         name: Install Python
