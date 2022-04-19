@@ -1,6 +1,6 @@
 import unittest
 
-from qiskit_toqm.toqm_swap import ToqmSwap
+from qiskit_toqm.toqm_swap import ToqmSwap, ToqmStrategyO1
 from qiskit.transpiler import CouplingMap, InstructionDurations, TranspilerError
 
 
@@ -22,6 +22,10 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
         self.durations_for_1q = durations_for_1q
         self.durations_for_2q = durations_for_2q
 
+        # Set optimality threshold to be greater than device size so we always
+        # use optimal mapping.
+        self.optimal_mapper = ToqmStrategyO1(self.coupling_map.size() + 1)
+
     def test_already_normalized(self):
         """
         Already normalized durations are used as cycle count without conversion.
@@ -33,7 +37,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 6)
         ], dt=1)
 
-        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False)
+        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False, strategy=self.optimal_mapper)
         latencies = list(swapper._build_latency_descriptions())
 
         self.assertTrue(
@@ -63,7 +67,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 4.977777777777778e-07, unit="s")
         ])
 
-        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False)
+        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False, strategy=self.optimal_mapper)
         latencies = list(swapper._build_latency_descriptions())
 
         self.assertTrue(
@@ -124,7 +128,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 152)
         ], dt=1)
 
-        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False)
+        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False, strategy=self.optimal_mapper)
         latencies = list(swapper._build_latency_descriptions())
 
         self.assertTrue(
@@ -156,7 +160,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 5)
         ], dt=1)
 
-        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False)
+        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False, strategy=self.optimal_mapper)
         latencies = list(swapper._build_latency_descriptions())
 
         self.assertTrue(
