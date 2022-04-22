@@ -37,7 +37,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 6)
         ], dt=1)
 
-        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False, strategy=self.optimal_mapper)
+        swapper = ToqmSwap(self.coupling_map, durations, strategy=self.optimal_mapper)
         latencies = list(swapper._build_latency_descriptions())
 
         self.assertTrue(
@@ -67,7 +67,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 4.977777777777778e-07, unit="s")
         ])
 
-        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False, strategy=self.optimal_mapper)
+        swapper = ToqmSwap(self.coupling_map, durations, strategy=self.optimal_mapper)
         latencies = list(swapper._build_latency_descriptions())
 
         self.assertTrue(
@@ -99,7 +99,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
 
         # Attempt to construct ToqmSwap without backend info
         with self.assertRaisesRegex(TranspilerError, "Both 'basis_gates' and 'backend_properties' must be specified.*"):
-            ToqmSwap(self.coupling_map, durations, perform_layout=False)
+            ToqmSwap(self.coupling_map, durations)
 
     def test_all_0_durations(self):
         """
@@ -115,7 +115,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
 
         # Attempt to construct ToqmSwap.
         with self.assertRaisesRegex(TranspilerError, "Durations must be specified for the target."):
-            ToqmSwap(self.coupling_map, durations, perform_layout=False)
+            ToqmSwap(self.coupling_map, durations)
 
     def test_normalize_dt(self):
         """
@@ -128,7 +128,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 152)
         ], dt=1)
 
-        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False, strategy=self.optimal_mapper)
+        swapper = ToqmSwap(self.coupling_map, durations, strategy=self.optimal_mapper)
         latencies = list(swapper._build_latency_descriptions())
 
         self.assertTrue(
@@ -160,7 +160,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 5)
         ], dt=1)
 
-        swapper = ToqmSwap(self.coupling_map, durations, perform_layout=False, strategy=self.optimal_mapper)
+        swapper = ToqmSwap(self.coupling_map, durations, strategy=self.optimal_mapper)
         latencies = list(swapper._build_latency_descriptions())
 
         self.assertTrue(

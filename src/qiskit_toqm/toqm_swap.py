@@ -55,7 +55,6 @@ class ToqmSwap(TransformationPass):
             self,
             coupling_map,
             instruction_durations,
-            perform_layout,
             strategy=None,
             basis_gates=None,
             backend_properties=None):
@@ -68,9 +67,6 @@ class ToqmSwap(TransformationPass):
                 in the target's basis. Must include durations for all gates
                 that appear in input DAGs other than ``swap`` (for which
                 durations are calculated through decomposition if not supplied).
-            perform_layout (bool): Enables initial layout search.
-                When true, updates ``self.property_set['layout']`` with the
-                determined initial layout.
             strategy (Optional[ToqmStrategy]):
                 The strategy to use when invoking the native ToqmMapper.
                 Defaults to ``ToqmStrategyO1()``.
@@ -94,7 +90,6 @@ class ToqmSwap(TransformationPass):
 
         self.coupling_map = coupling_map
         self.instruction_durations = instruction_durations
-        self.perform_layout = perform_layout
         self.basis_gates = basis_gates
         self.backend_properties = backend_properties
         self.toqm_strategy = strategy or ToqmStrategyO1()
@@ -104,7 +99,7 @@ class ToqmSwap(TransformationPass):
         couplings = toqm.CouplingMap(self.coupling_map.size(), edges)
         latency_descriptions = list(self._build_latency_descriptions())
 
-        self.toqm_strategy.on_pass_init(perform_layout, couplings, latency_descriptions)
+        self.toqm_strategy.on_pass_init(couplings, latency_descriptions)
 
     def _calc_swap_durations(self):
         """Calculates the durations of swap gates between each coupling on the target."""
@@ -259,26 +254,6 @@ class ToqmSwap(TransformationPass):
                     reg[g.physicalTarget]
                 ])
 
-        # Print result
-        # TODO: remove. This is just for debugging.
-        for g in self.toqm_result.scheduledGates:
-            print(f"{g.gateOp.type} ", end='')
-            if g.physicalControl >= 0:
-                print(f"q[{g.physicalControl}],", end='')
-            print(f"q[{g.physicalTarget}]; ", end='')
-
-            print(f"//cycle: {g.cycle}", end='')
-
-            if (g.gateOp.type.lower() != "swap"):
-                print(f" //{g.gateOp.type} ", end='')
-                if g.gateOp.control >= 0:
-                    print(f"q[{g.gateOp.control}],", end='')
-                print(f"q[{g.gateOp.target}]; ", end='')
-
-            print()
-
-        # TODO: we should be able to skip this if self.perform_layout is False
-        #   once this bug is fixed: https://github.com/qiskit-toqm/libtoqm/issues/12
         self._update_layout()
 
         return mapped_dag
