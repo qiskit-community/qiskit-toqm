@@ -15,22 +15,19 @@ import qiskit_toqm.native as toqm
 
 class ToqmStrategy:
     def __init__(self):
-        self.perform_layout = None
         self.coupling_map = None
         self.latency_descriptions = None
 
-    def on_pass_init(self, perform_layout: bool, coupling_map, latency_descriptions):
+    def on_pass_init(self, coupling_map, latency_descriptions):
         """
         Called by ``ToqmSwap`` during pass initialization with information about
         the transpilation.
 
         Args:
-            perform_layout (bool): If false, produced mappers MUST NOT change the layout.
             coupling_map (toqm.CouplingMap): The coupling map of the target.
             latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions for all target gates,
             including swaps.
         """
-        self.perform_layout = perform_layout
         self.coupling_map = coupling_map
         self.latency_descriptions = latency_descriptions
 
@@ -57,7 +54,7 @@ class ToqmStrategy:
             toqm.Table(self.latency_descriptions),
             [],
             [toqm.HashFilter(), toqm.HashFilter2()],
-            -1 if self.perform_layout else 0
+            -1
         )
 
     def _default_optimal_mapper_no_swaps(self):
@@ -68,7 +65,7 @@ class ToqmStrategy:
             toqm.Table(self.latency_descriptions),
             [],
             [],
-            -1 if self.perform_layout else 0
+            -1
         )
 
     # NOTE: currently, the heuristic mapper uses the hard-coded latencies of 1, 2 and 6
@@ -83,11 +80,21 @@ class ToqmStrategy:
             toqm.Latency_1_2_6(),
             [toqm.GreedyMapper()],
             [],
-            -1 if self.perform_layout else 0
+            0
         )
 
         mapper.setRetainPopped(1)
         return mapper
+
+
+class ToqmStrategyO0(ToqmStrategy):
+    def __init__(self):
+        super().__init__()
+
+    def run(self, gates, num_qubits):
+        mapper = self._default_heuristic_mapper(5000, 3000, 1)
+
+        return mapper.run(gates, num_qubits, self.coupling_map)
 
 
 class ToqmStrategyO1(ToqmStrategy):
@@ -106,7 +113,7 @@ class ToqmStrategyO1(ToqmStrategy):
         if self.coupling_map.numPhysicalQubits < self.threshold:
             mapper = self._default_optimal_mapper()
         else:
-            mapper = self._default_heuristic_mapper(2000, 1000, 10)
+            mapper = self._default_heuristic_mapper(800, 400, 5)
 
         return mapper.run(gates, num_qubits, self.coupling_map)
 
@@ -127,7 +134,7 @@ class ToqmStrategyO2(ToqmStrategy):
         if self.coupling_map.numPhysicalQubits < self.threshold:
             mapper = self._default_optimal_mapper()
         else:
-            mapper = self._default_heuristic_mapper(3000, 1200, 10)
+            mapper = self._default_heuristic_mapper(1000, 400, 11)
 
         return mapper.run(gates, num_qubits, self.coupling_map)
 
@@ -152,6 +159,6 @@ class ToqmStrategyO3(ToqmStrategy):
             except RuntimeError:
                 mapper = self._default_optimal_mapper()
         else:
-            mapper = self._default_heuristic_mapper(4500, 1200, 10)
+            mapper = self._default_heuristic_mapper(4800, 3600, 3)
 
         return mapper.run(gates, num_qubits, self.coupling_map)
