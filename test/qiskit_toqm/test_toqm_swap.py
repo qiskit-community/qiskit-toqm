@@ -1,6 +1,7 @@
 import unittest
 
-from qiskit_toqm.toqm_swap import ToqmSwap, ToqmStrategyO1
+from qiskit_toqm.toqm_swap import ToqmSwap
+from qiskit_toqm.toqm_latency import latencies_from_target
 from qiskit.transpiler import CouplingMap, InstructionDurations, TranspilerError
 
 
@@ -22,10 +23,6 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
         self.durations_for_1q = durations_for_1q
         self.durations_for_2q = durations_for_2q
 
-        # Set optimality threshold to be greater than device size so we always
-        # use optimal mapping.
-        self.optimal_mapper = ToqmStrategyO1(self.coupling_map.size() + 1)
-
     def test_already_normalized(self):
         """
         Already normalized durations are used as cycle count without conversion.
@@ -37,8 +34,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 6)
         ], dt=1)
 
-        swapper = ToqmSwap(self.coupling_map, durations, strategy=self.optimal_mapper)
-        latencies = list(swapper._build_latency_descriptions())
+        latencies = list(latencies_from_target(self.coupling_map, durations))
 
         self.assertTrue(
             all(x.latency == 0 for x in latencies if x.type == "rz")
@@ -67,8 +63,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 4.977777777777778e-07, unit="s")
         ])
 
-        swapper = ToqmSwap(self.coupling_map, durations, strategy=self.optimal_mapper)
-        latencies = list(swapper._build_latency_descriptions())
+        latencies = list(latencies_from_target(self.coupling_map, durations))
 
         self.assertTrue(
             all(x.latency == 0 for x in latencies if x.type == "rz")
@@ -88,7 +83,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
 
     def test_missing_swap_durations(self):
         """
-        Constructing ToqmSwap without providing swap durations or a backend should fail.
+        Calling latencies_from_target without providing swap durations or a backend should fail.
         """
         # Create durations with no swap info
         durations = InstructionDurations([
@@ -97,13 +92,13 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("cx", 2)
         ], dt=1)
 
-        # Attempt to construct ToqmSwap without backend info
+        # Attempt to call latencies_from_target without backend info
         with self.assertRaisesRegex(TranspilerError, "Both 'basis_gates' and 'backend_properties' must be specified.*"):
-            ToqmSwap(self.coupling_map, durations)
+            list(latencies_from_target(self.coupling_map, durations))
 
     def test_all_0_durations(self):
         """
-        Constructing ToqmSwap should fail if all gate durations are 0.
+        Calling latencies_from_target should fail if all gate durations are 0.
         """
         # Create durations such that all instructions finish instantaneously.
         durations = InstructionDurations([
@@ -113,9 +108,8 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 0)
         ], dt=1)
 
-        # Attempt to construct ToqmSwap.
         with self.assertRaisesRegex(TranspilerError, "Durations must be specified for the target."):
-            ToqmSwap(self.coupling_map, durations)
+            list(latencies_from_target(self.coupling_map, durations))
 
     def test_normalize_dt(self):
         """
@@ -128,8 +122,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 152)
         ], dt=1)
 
-        swapper = ToqmSwap(self.coupling_map, durations, strategy=self.optimal_mapper)
-        latencies = list(swapper._build_latency_descriptions())
+        latencies = list(latencies_from_target(self.coupling_map, durations))
 
         self.assertTrue(
             all(x.latency == 0 for x in latencies if x.type == "rz")
@@ -160,8 +153,7 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
             *self.durations_for_2q("swap", 5)
         ], dt=1)
 
-        swapper = ToqmSwap(self.coupling_map, durations, strategy=self.optimal_mapper)
-        latencies = list(swapper._build_latency_descriptions())
+        latencies = list(latencies_from_target(self.coupling_map, durations))
 
         self.assertTrue(
             all(x.latency == 0 for x in latencies if x.type == "rz")
