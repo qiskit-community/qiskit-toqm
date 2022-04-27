@@ -70,7 +70,8 @@ def latencies_from_target(
     normalize_scale=2
 ):
     """
-    ToqmLatencyDescriptions initializer.
+    Generate a list of native ``LatencyDescription`` objects for
+    the specified target device.
 
     Args:
         coupling_map (CouplingMap): CouplingMap of the target backend.
@@ -131,6 +132,19 @@ def latencies_from_target(
 
 
 def latencies_from_simple(one_qubit_cycles, two_qubit_cycles, swap_cycles):
+    """
+    Generate a list of native ``LatencyDescription`` objects for
+    the specified hard-coded cycle counts.
+
+    The resulting latency descriptions describe a circuit in which
+    all 1Q, 2Q, and SWAP gates execute in the corresponding number
+    of cycles, irrespective of which qubits they execute on.
+
+    Args:
+        one_qubit_cycles (int): The number of cycles for all 1Q gates.
+        two_qubit_cycles (int): The number of cycles for all 2Q gates.
+        swap_cycles (int): The number of cycles for all swap gates.
+    """
     return [
         toqm.LatencyDescription(1, one_qubit_cycles),
         toqm.LatencyDescription(2, two_qubit_cycles),

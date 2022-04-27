@@ -15,6 +15,25 @@ import qiskit_toqm.native as toqm
 
 class ToqmHeuristicStrategy:
     def __init__(self, latency_descriptions, top_k, queue_target, queue_max, retain_popped=1):
+        """
+        Constructs a TOQM strategy that aims to minimize overall circuit duration.
+        The priority queue used in the A* is configured to drop the worst nodes
+        whenever it reaches the queue size limit. Node expansion is also limited
+        to exploring the best ``K`` children.
+
+        Args:
+            latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions
+            for all gates that will appear in the circuit, including swaps.
+            top_k (int): The maximum number of best child nodes that can be pushed to the
+            queue during expansion of any given node.
+            queue_target (int): When the priority queue reaches capacity, nodes are dropped
+            until the size reaches this value.
+            queue_max (int): The priority queue capacity.
+            retain_popped (int): Final nodes to retain.
+
+        Raises:
+            RuntimeError: No routing was found.
+        """
         # The following defaults are based on:
         # https://github.com/time-optimal-qmapper/TOQM/blob/main/code/README.txt
         self.mapper = toqm.ToqmMapper(
@@ -29,14 +48,14 @@ class ToqmHeuristicStrategy:
 
         self.mapper.setRetainPopped(retain_popped)
 
-    def __call__(self, coupling_map, gates, num_qubits):
+    def __call__(self, gates, num_qubits, coupling_map):
         """
         Run native ToqmMapper and return the native result.
 
         Args:
-            coupling_map (toqm.CouplingMap): The coupling map of the target.
             gates (List[toqm.GateOp]): The topologically ordered list of gate operations.
             num_qubits (int): The number of virtual qubits used in the circuit.
+            coupling_map (toqm.CouplingMap): The coupling map of the target.
 
         Returns:
             toqm.ToqmResult: The native result.
@@ -51,8 +70,8 @@ class ToqmOptimalStrategy:
         in terms of overall circuit duration.
 
         Args:
-            latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions for all target gates,
-            including swaps.
+            latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions
+            for all gates that will appear in the circuit, including swaps.
             perform_layout (Boolean): If true, permutes the initial layout rather than
             inserting swap gates at the start of the circuit.
             no_swaps (Boolean): If true, attempts to find a routing without inserting swaps.
@@ -72,14 +91,14 @@ class ToqmOptimalStrategy:
             -1 if perform_layout else 0
         )
 
-    def __call__(self, coupling_map, gates, num_qubits):
+    def __call__(self, gates, num_qubits, coupling_map):
         """
         Run native ToqmMapper and return the native result.
 
         Args:
-            coupling_map (toqm.CouplingMap): The coupling map of the target.
             gates (List[toqm.GateOp]): The topologically ordered list of gate operations.
             num_qubits (int): The number of virtual qubits used in the circuit.
+            coupling_map (toqm.CouplingMap): The coupling map of the target.
 
         Returns:
             toqm.ToqmResult: The native result.

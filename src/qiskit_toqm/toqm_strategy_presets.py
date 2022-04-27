@@ -21,6 +21,13 @@ from qiskit_toqm import latencies_from_simple
 
 class ToqmStrategyO0:
     def __init__(self, latency_descriptions):
+        """
+        Constructs a TOQM strategy that executes as fast as possible.
+
+        Args:
+            latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions
+            for all gates that will appear in the circuit, including swaps.
+        """
         self.heuristic_strategy = ToqmHeuristicStrategy(
             latency_descriptions,
             top_k=1,
@@ -28,12 +35,21 @@ class ToqmStrategyO0:
             queue_max=5000
         )
 
-    def __call__(self, coupling_map, gates, num_qubits):
-        return self.heuristic_strategy(coupling_map, gates, num_qubits)
+    def __call__(self, gates, num_qubits, coupling_map):
+        return self.heuristic_strategy(gates, num_qubits, coupling_map)
 
 
 class ToqmStrategyO1:
     def __init__(self, latency_descriptions):
+        """
+        Constructs a TOQM strategy that should produce a circuit with
+        a shorter duration than lower optimization levels, but that
+        takes longer to run.
+
+        Args:
+            latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions
+            for all gates that will appear in the circuit, including swaps.
+        """
         # https://github.com/qiskit-toqm/libtoqm/issues/15
         latency_descriptions = latencies_from_simple(1, 2, 6)
 
@@ -48,17 +64,26 @@ class ToqmStrategyO1:
             queue_max=800
         )
 
-    def __call__(self, coupling_map, gates, num_qubits):
+    def __call__(self, gates, num_qubits, coupling_map):
         if coupling_map.numPhysicalQubits < 6:
             strategy = self.optimal_strategy
         else:
             strategy = self.heuristic_strategy
 
-        return strategy(coupling_map, gates, num_qubits)
+        return strategy(gates, num_qubits, coupling_map)
 
 
 class ToqmStrategyO2:
     def __init__(self, latency_descriptions):
+        """
+        Constructs a TOQM strategy that should produce a circuit with
+        a shorter duration than lower optimization levels, but that
+        takes longer to run.
+
+        Args:
+            latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions
+            for all gates that will appear in the circuit, including swaps.
+        """
         # https://github.com/qiskit-toqm/libtoqm/issues/15
         latency_descriptions = latencies_from_simple(1, 2, 6)
 
@@ -73,17 +98,26 @@ class ToqmStrategyO2:
             queue_max=100
         )
 
-    def __call__(self, coupling_map, gates, num_qubits):
+    def __call__(self, gates, num_qubits, coupling_map):
         if coupling_map.numPhysicalQubits < 6:
             strategy = self.optimal_strategy
         else:
             strategy = self.heuristic_strategy
 
-        return strategy(coupling_map, gates, num_qubits)
+        return strategy(gates, num_qubits, coupling_map)
 
 
 class ToqmStrategyO3:
     def __init__(self, latency_descriptions):
+        """
+        Constructs a TOQM strategy that should produce a circuit with
+        a shorter duration than lower optimization levels, but that
+        takes MUCH longer to run.
+
+        Args:
+            latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions
+            for all gates that will appear in the circuit, including swaps.
+        """
         # https://github.com/qiskit-toqm/libtoqm/issues/15
         latency_descriptions = latencies_from_simple(1, 2, 6)
 
@@ -103,14 +137,14 @@ class ToqmStrategyO3:
             queue_max=4800
         )
 
-    def __call__(self, coupling_map, gates, num_qubits):
+    def __call__(self, gates, num_qubits, coupling_map):
         if coupling_map.numPhysicalQubits < 6:
             # try no swaps first
             try:
-                return self.optimal_strategy_no_swaps(coupling_map, gates, num_qubits)
+                return self.optimal_strategy_no_swaps(gates, num_qubits, coupling_map)
             except RuntimeError:
                 strategy = self.optimal_strategy
         else:
             strategy = self.heuristic_strategy
 
-        return strategy(coupling_map, gates, num_qubits)
+        return strategy(gates, num_qubits, coupling_map)

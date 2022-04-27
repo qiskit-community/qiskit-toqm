@@ -43,7 +43,7 @@ class ToqmSwap(TransformationPass):
 
         Args:
             coupling_map (CouplingMap): CouplingMap of the target backend.
-            strategy (typing.Callable[[toqm.CouplingMap, List[toqm.GateOp], int], toqm.ToqmResult]):
+            strategy (typing.Callable[[List[toqm.GateOp], int, toqm.CouplingMap], toqm.ToqmResult]):
                 A callable responsible for running the native ``ToqmMapper`` and
                 returning a native ``ToqmResult``.
         """
@@ -103,7 +103,7 @@ class ToqmSwap(TransformationPass):
         edges = {e for e in self.coupling_map.get_edges()}
         couplings = toqm.CouplingMap(self.coupling_map.size(), edges)
 
-        self.toqm_result = self.toqm_strategy(couplings, gate_ops, dag.num_qubits())
+        self.toqm_result = self.toqm_strategy(gate_ops, dag.num_qubits(), couplings)
 
         # Preserve input DAG's name, regs, wire_map, etc. but replace the graph.
         mapped_dag = dag.copy_empty_like()

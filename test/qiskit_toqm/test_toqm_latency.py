@@ -1,6 +1,5 @@
 import unittest
 
-from qiskit_toqm.toqm_swap import ToqmSwap
 from qiskit_toqm.toqm_latency import latencies_from_target
 from qiskit.transpiler import CouplingMap, InstructionDurations, TranspilerError
 
