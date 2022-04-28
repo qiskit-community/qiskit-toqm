@@ -14,7 +14,7 @@ from setuptools import find_packages
 
 setup(
     name="qiskit-toqm",
-    version="0.0.1",
+    version="0.0.3",
     description="Qiskit transpiler passes for the TOQM algorithm",
     author="Qiskit Development Team",
     author_email="hello@qiskit.org",

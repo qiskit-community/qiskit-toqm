@@ -13,145 +13,94 @@
 import qiskit_toqm.native as toqm
 
 
-class ToqmStrategy:
-    def __init__(self):
-        self.perform_layout = None
-        self.coupling_map = None
-        self.latency_descriptions = None
-
-    def on_pass_init(self, perform_layout: bool, coupling_map, latency_descriptions):
+class ToqmHeuristicStrategy:
+    def __init__(self, latency_descriptions, top_k, queue_target, queue_max, retain_popped=1):
         """
-        Called by ``ToqmSwap`` during pass initialization with information about
-        the transpilation.
+        Constructs a TOQM strategy that aims to minimize overall circuit duration.
+        The priority queue used in the A* is configured to drop the worst nodes
+        whenever it reaches the queue size limit. Node expansion is also limited
+        to exploring the best ``K`` children.
 
         Args:
-            perform_layout (bool): If false, produced mappers MUST NOT change the layout.
-            coupling_map (toqm.CouplingMap): The coupling map of the target.
-            latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions for all target gates,
-            including swaps.
-        """
-        self.perform_layout = perform_layout
-        self.coupling_map = coupling_map
-        self.latency_descriptions = latency_descriptions
+            latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions
+            for all gates that will appear in the circuit, including swaps.
+            top_k (int): The maximum number of best child nodes that can be pushed to the
+            queue during expansion of any given node.
+            queue_target (int): When the priority queue reaches capacity, nodes are dropped
+            until the size reaches this value.
+            queue_max (int): The priority queue capacity.
+            retain_popped (int): Final nodes to retain.
 
-    def run(self, gates, num_qubits):
+        Raises:
+            RuntimeError: No routing was found.
+        """
+        # The following defaults are based on:
+        # https://github.com/time-optimal-qmapper/TOQM/blob/main/code/README.txt
+        self.mapper = toqm.ToqmMapper(
+            toqm.TrimSlowNodes(queue_max, queue_target),
+            toqm.GreedyTopK(top_k),
+            toqm.CXFrontier(),
+            toqm.Table(list(latency_descriptions)),
+            [toqm.GreedyMapper()],
+            [],
+            0
+        )
+
+        self.mapper.setRetainPopped(retain_popped)
+
+    def __call__(self, gates, num_qubits, coupling_map):
         """
         Run native ToqmMapper and return the native result.
 
         Args:
             gates (List[toqm.GateOp]): The topologically ordered list of gate operations.
             num_qubits (int): The number of virtual qubits used in the circuit.
+            coupling_map (toqm.CouplingMap): The coupling map of the target.
 
         Returns:
             toqm.ToqmResult: The native result.
         """
-        pass
+        return self.mapper.run(gates, num_qubits, coupling_map)
 
-    # The following defaults are based on:
-    # https://github.com/time-optimal-qmapper/TOQM/blob/main/code/README.txt
-    def _default_optimal_mapper(self):
-        return toqm.ToqmMapper(
+
+class ToqmOptimalStrategy:
+    def __init__(self, latency_descriptions, perform_layout=True, no_swaps=False):
+        """
+        Constructs a TOQM strategy that finds an optimal (minimal) routing
+        in terms of overall circuit duration.
+
+        Args:
+            latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions
+            for all gates that will appear in the circuit, including swaps.
+            perform_layout (Boolean): If true, permutes the initial layout rather than
+            inserting swap gates at the start of the circuit.
+            no_swaps (Boolean): If true, attempts to find a routing without inserting swaps.
+
+        Raises:
+            RuntimeError: No routing was found.
+        """
+        # The following defaults are based on:
+        # https://github.com/time-optimal-qmapper/TOQM/blob/main/code/README.txt
+        self.mapper = toqm.ToqmMapper(
             toqm.DefaultQueue(),
-            toqm.DefaultExpander(),
+            toqm.NoSwaps() if no_swaps else toqm.DefaultExpander(),
             toqm.CXFrontier(),
-            toqm.Table(self.latency_descriptions),
+            toqm.Table(latency_descriptions),
             [],
             [toqm.HashFilter(), toqm.HashFilter2()],
-            -1 if self.perform_layout else 0
+            -1 if perform_layout else 0
         )
 
-    def _default_optimal_mapper_no_swaps(self):
-        return toqm.ToqmMapper(
-            toqm.DefaultQueue(),
-            toqm.NoSwaps(),
-            toqm.CXFrontier(),
-            toqm.Table(self.latency_descriptions),
-            [],
-            [],
-            -1 if self.perform_layout else 0
-        )
-
-    # NOTE: currently, the heuristic mapper uses the hard-coded latencies of 1, 2 and 6
-    # for 1Q, 2Q and SWAP gates, respectively. This is because when gate-specific latencies
-    # are used with heuristic components, the run sometimes never terminates.
-    # This is tracked here: https://github.com/qiskit-toqm/libtoqm/issues/15
-    def _default_heuristic_mapper(self, max_nodes, min_nodes, k):
-        mapper = toqm.ToqmMapper(
-            toqm.TrimSlowNodes(max_nodes, min_nodes),
-            toqm.GreedyTopK(k),
-            toqm.CXFrontier(),
-            toqm.Latency_1_2_6(),
-            [toqm.GreedyMapper()],
-            [],
-            -1 if self.perform_layout else 0
-        )
-
-        mapper.setRetainPopped(1)
-        return mapper
-
-
-class ToqmStrategyO1(ToqmStrategy):
-    def __init__(self, optimality_threshold=6):
+    def __call__(self, gates, num_qubits, coupling_map):
         """
-        Initializer.
+        Run native ToqmMapper and return the native result.
 
         Args:
-            optimality_threshold (int): The number of qubits at which returned
-                native mappers should begin using a non-optimal heuristic configuration.
+            gates (List[toqm.GateOp]): The topologically ordered list of gate operations.
+            num_qubits (int): The number of virtual qubits used in the circuit.
+            coupling_map (toqm.CouplingMap): The coupling map of the target.
+
+        Returns:
+            toqm.ToqmResult: The native result.
         """
-        super().__init__()
-        self.threshold = optimality_threshold
-
-    def run(self, gates, num_qubits):
-        if self.coupling_map.numPhysicalQubits < self.threshold:
-            mapper = self._default_optimal_mapper()
-        else:
-            mapper = self._default_heuristic_mapper(2000, 1000, 10)
-
-        return mapper.run(gates, num_qubits, self.coupling_map)
-
-
-class ToqmStrategyO2(ToqmStrategy):
-    def __init__(self, optimality_threshold=6):
-        """
-        Initializer.
-
-        Args:
-            optimality_threshold (int): The number of qubits at which returned
-                native mappers should begin using a non-optimal heuristic configuration.
-        """
-        super().__init__()
-        self.threshold = optimality_threshold
-
-    def run(self, gates, num_qubits):
-        if self.coupling_map.numPhysicalQubits < self.threshold:
-            mapper = self._default_optimal_mapper()
-        else:
-            mapper = self._default_heuristic_mapper(3000, 1200, 10)
-
-        return mapper.run(gates, num_qubits, self.coupling_map)
-
-
-class ToqmStrategyO3(ToqmStrategy):
-    def __init__(self, optimality_threshold=6):
-        """
-        Initializer.
-
-        Args:
-            optimality_threshold (int): The number of qubits at which returned
-                native mappers should begin using a non-optimal heuristic configuration.
-        """
-        super().__init__()
-        self.threshold = optimality_threshold
-
-    def run(self, gates, num_qubits):
-        if self.coupling_map.numPhysicalQubits < self.threshold:
-            # try no swaps first
-            try:
-                return self._default_optimal_mapper_no_swaps().run(gates, num_qubits, self.coupling_map)
-            except RuntimeError:
-                mapper = self._default_optimal_mapper()
-        else:
-            mapper = self._default_heuristic_mapper(4500, 1200, 10)
-
-        return mapper.run(gates, num_qubits, self.coupling_map)
+        return self.mapper.run(gates, num_qubits, coupling_map)
