@@ -92,7 +92,8 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
         ], dt=1)
 
         # Attempt to call latencies_from_target without backend info
-        with self.assertRaisesRegex(TranspilerError, "Both 'basis_gates' and 'backend_properties' must be specified.*"):
+        with self.assertRaisesRegex(TranspilerError,
+                                    ".*'basis_gates' and 'backend_properties' must be specified.*"):
             list(latencies_from_target(self.coupling_map, durations))
 
     def test_all_0_durations(self):

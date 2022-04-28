@@ -11,13 +11,13 @@
 # that they have been altered from the originals.
 
 import qiskit
-from qiskit.transpiler import TranspilerError, InstructionDurations
+from qiskit.transpiler import TranspilerError
 import qiskit_toqm.native as toqm
 
 from itertools import chain
 
 
-def _calc_swap_durations(coupling_map, instruction_durations, basis_gates, backend_properties):
+def _calc_swap_durations(coupling_map, instruction_durations, basis_gates, backend_properties, target):
     """Calculates the durations of swap gates between each coupling on the target."""
     # Filter for couplings that don't already have a native swap.
     couplings = [
@@ -28,10 +28,10 @@ def _calc_swap_durations(coupling_map, instruction_durations, basis_gates, backe
     if not couplings:
         return
 
-    backend_aware = basis_gates is not None and backend_properties is not None
+    backend_aware = target is not None or (basis_gates is not None and backend_properties is not None)
     if not backend_aware:
         raise TranspilerError(
-            "Both 'basis_gates' and 'backend_properties' must be specified unless"
+            "`target` must be specified, or both 'basis_gates' and 'backend_properties' must be specified unless"
             "'instruction_durations' has durations for all swap gates."
         )
 
@@ -46,8 +46,9 @@ def _calc_swap_durations(coupling_map, instruction_durations, basis_gates, backe
         [gen_swap_circuit(*pair) for pair in couplings],
         basis_gates=basis_gates,
         coupling_map=coupling_map,
-        backend_properties=backend_properties,
+        backend_properties=backend_properties if target is None else None,
         instruction_durations=instruction_durations,
+        target=target,
         optimization_level=0,
         layout_method="trivial",
         scheduling_method="asap"
@@ -63,10 +64,11 @@ def _calc_swap_durations(coupling_map, instruction_durations, basis_gates, backe
 
 
 def latencies_from_target(
-    coupling_map,
-    instruction_durations,
+    coupling_map=None,
+    instruction_durations=None,
     basis_gates=None,
     backend_properties=None,
+    target=None,
     normalize_scale=2
 ):
     """
@@ -74,26 +76,39 @@ def latencies_from_target(
     the specified target device.
 
     Args:
-        coupling_map (CouplingMap): CouplingMap of the target backend.
-        instruction_durations (InstructionDurations): Durations for gates
+        coupling_map (Optional[CouplingMap]): CouplingMap of the target backend.
+            Required unless ``target`` is specified.
+        instruction_durations (Optional[InstructionDurations]): Durations for gates
             in the target's basis. Must include durations for all gates
             that appear in input DAGs other than ``swap`` (for which
             durations are calculated through decomposition if not supplied).
+            Required unless ``target`` is specified.
         basis_gates (Optional[List[str]]): The list of basis gates for the
-            target. Must be specified unless ``instruction_durations``
-            contains durations for all swap gates.
+            target. Required unless ``instruction_durations``
+            contains durations for all swap gates or ``target`` is specified.
         backend_properties (Optional[BackendProperties]): The backend
-            properties of the target. Must be specified unless
-            ``instruction_durations`` contains durations for all swap gates.
+            properties of the target. Required unless
+            ``instruction_durations`` contains durations for all swap gates
+            or ``target`` is specified.
+        target (Optional[Target]): The backend transpiler target. If specified,
+            overrides ``coupling_map``, ``instruction_durations``, ``basis_gates``,
+            and ``backend_properties``. All gates that appear in input DAG other
+            than ``swap`` must be supported by the target and have duration
+            information available therein.
         normalize_scale (int): Multiple by this factor when converting
             relative durations to cycle count. The conversion is:
             cycles = ceil(duration * NORMALIZE_SCALE / min_duration)
             where min_duration is the length of the fastest non-zero duration
             instruction on the target.
     """
+    if target is not None:
+        coupling_map = target.build_coupling_map()
+        instruction_durations = target.durations()
+        basis_gates = target.operation_names
+
     unit = "dt" if instruction_durations.dt else "s"
 
-    swap_durations = list(_calc_swap_durations(coupling_map, instruction_durations, basis_gates, backend_properties))
+    swap_durations = list(_calc_swap_durations(coupling_map, instruction_durations, basis_gates, backend_properties, target))
     default_op_durations = [
         (op_name, instruction_durations.get(op_name, [], unit))
         for op_name in instruction_durations.duration_by_name
