@@ -11,32 +11,15 @@
 # that they have been altered from the originals.
 import logging
 
-import qiskit
 import qiskit_toqm.native as toqm
 
 from qiskit.circuit.library.standard_gates import SwapGate
 from qiskit.dagcircuit import DAGCircuit
-from qiskit.transpiler import InstructionDurations
 
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.exceptions import TranspilerError
 
-from itertools import chain
-
-from .toqm_strategy import ToqmStrategy, ToqmStrategyO1
-
 logger = logging.getLogger(__name__)
-
-
-# Multiply by this factor when converting relative durations to cycle
-# count.
-#
-# The conversion is:
-#   cycles = ceil(duration * NORMALIZE_SCALE / min_duration)
-#
-# where min_duration is the length of the fastest non-zero duration
-# instruction on the target.
-NORMALIZE_SCALE = 2
 
 
 class ToqmSwap(TransformationPass):
@@ -54,28 +37,15 @@ class ToqmSwap(TransformationPass):
     def __init__(
             self,
             coupling_map,
-            instruction_durations,
-            strategy=None,
-            basis_gates=None,
-            backend_properties=None):
+            strategy):
         """
         ToqmSwap initializer.
 
         Args:
             coupling_map (CouplingMap): CouplingMap of the target backend.
-            instruction_durations (InstructionDurations): Durations for gates
-                in the target's basis. Must include durations for all gates
-                that appear in input DAGs other than ``swap`` (for which
-                durations are calculated through decomposition if not supplied).
-            strategy (Optional[ToqmStrategy]):
-                The strategy to use when invoking the native ToqmMapper.
-                Defaults to ``ToqmStrategyO1()``.
-            basis_gates (Optional[List[str]]): The list of basis gates for the
-                target. Must be specified unless ``instruction_durations``
-                contains durations for all swap gates.
-            backend_properties (Optional[BackendProperties]): The backend
-                properties of the target. Must be specified unless
-                ``instruction_durations`` contains durations for all swap gates.
+            strategy (typing.Callable[[List[toqm.GateOp], int, toqm.CouplingMap], toqm.ToqmResult]):
+                A callable responsible for running the native ``ToqmMapper`` and
+                returning a native ``ToqmResult``.
         """
         super().__init__()
 
@@ -89,105 +59,8 @@ class ToqmSwap(TransformationPass):
             raise TranspilerError("ToqmSwap currently supports a max of 127 qubits.")
 
         self.coupling_map = coupling_map
-        self.instruction_durations = instruction_durations
-        self.basis_gates = basis_gates
-        self.backend_properties = backend_properties
-        self.toqm_strategy = strategy or ToqmStrategyO1()
+        self.toqm_strategy = strategy
         self.toqm_result = None
-
-        edges = {e for e in self.coupling_map.get_edges()}
-        couplings = toqm.CouplingMap(self.coupling_map.size(), edges)
-        latency_descriptions = list(self._build_latency_descriptions())
-
-        self.toqm_strategy.on_pass_init(couplings, latency_descriptions)
-
-    def _calc_swap_durations(self):
-        """Calculates the durations of swap gates between each coupling on the target."""
-        # Filter for couplings that don't already have a native swap.
-        couplings = [
-            c for c in self.coupling_map.get_edges()
-            if ("swap", c) not in self.instruction_durations.duration_by_name_qubits
-        ]
-
-        if not couplings:
-            return
-
-        backend_aware = self.basis_gates is not None and self.backend_properties is not None
-        if not backend_aware:
-            raise TranspilerError(
-                "Both 'basis_gates' and 'backend_properties' must be specified unless"
-                "'instruction_durations' has durations for all swap gates."
-            )
-
-        def gen_swap_circuit(s, t):
-            # Generates a circuit with a single swap gate between src and tgt
-            c = qiskit.QuantumCircuit(self.coupling_map.size())
-            c.swap(s, t)
-            return c
-
-        # Batch transpile generated swap circuits
-        swap_circuits = qiskit.transpile(
-            [gen_swap_circuit(*pair) for pair in couplings],
-            basis_gates=self.basis_gates,
-            coupling_map=self.coupling_map,
-            backend_properties=self.backend_properties,
-            instruction_durations=self.instruction_durations,
-            optimization_level=0,
-            layout_method="trivial",
-            scheduling_method="asap"
-        )
-
-        for (src, tgt), qc in zip(couplings, swap_circuits):
-            if self.instruction_durations.dt is None and qc.unit == "dt":
-                # TODO: should be able to convert by looking up an op in both
-                raise TranspilerError("Incompatible units.")
-
-            duration = (
-                    max(qc.qubit_stop_time(src), qc.qubit_stop_time(tgt))
-                    - min(qc.qubit_start_time(src), qc.qubit_start_time(tgt))
-            )
-
-            yield src, tgt, duration
-
-    def _build_latency_descriptions(self):
-        unit = "dt" if self.instruction_durations.dt else "s"
-
-        swap_durations = list(self._calc_swap_durations())
-        default_op_durations = [
-            (op_name, self.instruction_durations.get(op_name, [], unit))
-            for op_name in self.instruction_durations.duration_by_name
-        ]
-        op_durations = [
-            (op_name, bits, self.instruction_durations.get(op_name, bits, unit))
-            for (op_name, bits) in self.instruction_durations.duration_by_name_qubits
-        ]
-
-        non_zero_durations = [d for d in chain(
-            (d for (_, d) in default_op_durations),
-            (d for (_, _, d) in op_durations),
-            (d for (_, _, d) in swap_durations)
-        ) if d > 0]
-
-        if not non_zero_durations:
-            raise TranspilerError("Durations must be specified for the target.")
-
-        min_duration = min(non_zero_durations)
-
-        def normalize(d):
-            return round(d * NORMALIZE_SCALE / min_duration)
-
-        # Yield latency descriptions with durations interpolated to cycles.
-        for op_name, duration in default_op_durations:
-            # We don't know if the instruction is for 1 or 2 qubits, so emit
-            # defaults for both.
-            yield toqm.LatencyDescription(1, op_name, normalize(duration))
-            yield toqm.LatencyDescription(2, op_name, normalize(duration))
-
-        for op_name, qubits, duration in op_durations:
-            yield toqm.LatencyDescription(op_name, *qubits, normalize(duration))
-
-        for src, tgt, duration in swap_durations:
-            yield toqm.LatencyDescription("swap", src, tgt, normalize(duration))
 
     def run(self, dag: DAGCircuit):
         """Run the ToqmSwap pass on `dag`.
@@ -201,12 +74,6 @@ class ToqmSwap(TransformationPass):
         """
         if self.coupling_map is None:
             raise TranspilerError("TOQM swap not properly initialized.")
-
-        if self.instruction_durations is None or (
-                not self.instruction_durations.duration_by_name_qubits
-                and not self.instruction_durations.duration_by_name
-        ):
-            raise TranspilerError("Instruction durations must be specified for this pass!")
 
         if len(dag.qregs) != 1 or dag.qregs.get("q", None) is None:
             raise TranspilerError("TOQM swap runs on physical circuits only.")
@@ -233,7 +100,10 @@ class ToqmSwap(TransformationPass):
                                           f"Bad gate: {node.op.name} {node.qargs}")
 
         gate_ops = list(gates())
-        self.toqm_result = self.toqm_strategy.run(gate_ops, dag.num_qubits())
+        edges = {e for e in self.coupling_map.get_edges()}
+        couplings = toqm.CouplingMap(self.coupling_map.size(), edges)
+
+        self.toqm_result = self.toqm_strategy(gate_ops, dag.num_qubits(), couplings)
 
         # Preserve input DAG's name, regs, wire_map, etc. but replace the graph.
         mapped_dag = dag.copy_empty_like()
