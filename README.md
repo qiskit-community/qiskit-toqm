@@ -16,8 +16,18 @@ Qiskit TOQM
 Installation
 ------------
 
-- clone this repository
-- `pip install ./qiskit-toqm`
+This package is available on PyPI as `qiskit-toqm`.
+
+To install it, run:
+
+```sh
+pip install qiskit-toqm
+```
+
+Alternatively,
+
+1. Clone this repository recursively.
+2. Install it from source: `pip install .`
 
 
 Licenses
