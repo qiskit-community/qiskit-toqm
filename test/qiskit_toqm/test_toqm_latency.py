@@ -2,6 +2,7 @@ import unittest
 
 from qiskit_toqm.toqm_latency import latencies_from_target
 from qiskit.transpiler import CouplingMap, InstructionDurations, TranspilerError
+from qiskit.providers.fake_provider import FakeMontrealV2
 
 
 class TestBuildLatencyDescriptions(unittest.TestCase):
@@ -21,6 +22,17 @@ class TestBuildLatencyDescriptions(unittest.TestCase):
 
         self.durations_for_1q = durations_for_1q
         self.durations_for_2q = durations_for_2q
+
+    def test_from_target(self):
+        backend = FakeMontrealV2()
+        target = backend.target
+
+        # Due to a units bug in Terra, we need to set dt ourselves
+        target.dt = .2222222222222 * 1e-9
+        latencies = list(latencies_from_target(target=target, normalize_scale=1))
+
+        self.assertTrue(len(latencies) > 0)
+        self.assertTrue(any(l.latency == 1 for l in latencies))
 
     def test_already_normalized(self):
         """
