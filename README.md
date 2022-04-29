@@ -4,14 +4,16 @@ Qiskit TOQM
 |      CI              | status |
 |----------------------|--------|
 | pip builds           | [![Pip Actions Status][actions-pip-badge]][actions-pip-link] |
+| wheels               | [![Wheels Actions Status][actions-wheels-badge]][actions-wheels-link] |
+
 
 [Qiskit Terra](https://github.com/qiskit/qiskit-terra) transpiler passes for the [Time-Optimal Qubit Mapping](https://doi.org/10.1145/3445814.3446706) (TOQM) algorithm.
 
-[actions-badge]:           https://github.com/kevinhartman/qiskit-toqm/workflows/Tests/badge.svg
-[actions-pip-link]:        https://github.com/kevinhartman/qiskit-toqm/actions?query=workflow%3APip
-[actions-pip-badge]:       https://github.com/kevinhartman/qiskit-toqm/workflows/Pip/badge.svg
-[actions-wheels-link]:     https://github.com/kevinhartman/qiskit-toqm/actions?query=workflow%3AWheels
-[actions-wheels-badge]:    https://github.com/kevinhartman/qiskit-toqm/workflows/Wheels/badge.svg
+[actions-badge]:           https://github.com/qiskit-toqm/qiskit-toqm/workflows/Tests/badge.svg
+[actions-pip-link]:        https://github.com/qiskit-toqm/qiskit-toqm/actions?query=workflow%3APip
+[actions-pip-badge]:       https://github.com/qiskit-toqm/qiskit-toqm/workflows/Pip/badge.svg
+[actions-wheels-link]:     https://github.com/qiskit-toqm/qiskit-toqm/actions?query=workflow%3AWheels
+[actions-wheels-badge]:    https://github.com/qiskit-toqm/qiskit-toqm/workflows/Wheels/badge.svg
 
 Installation
 ------------
