@@ -7,6 +7,9 @@ on:
     branches:
       - main
 
+env:
+  QISKIT_PARALLEL: false
+
 jobs:
   build:
     name: Build with Pip
@@ -32,5 +35,3 @@ jobs:
 
     - name: Test
       run: pytest
-      env:
-        QISKIT_PARALLEL: false
