@@ -14,7 +14,7 @@ from setuptools import find_packages
 
 setup(
     name="qiskit-toqm",
-    version="0.0.4",
+    version="0.1.0",
     description="Qiskit transpiler passes for the TOQM algorithm",
     author="Qiskit Development Team",
     author_email="hello@qiskit.org",
@@ -45,5 +45,10 @@ setup(
         "Bug Tracker": "https://github.com/kevinhartman/qiskit-toqm/issues",
         "Documentation": "https://github.com/kevinhartman/qiskit-toqm",
         "Source Code": "https://github.com/kevinhartman/qiskit-toqm",
+    },
+    entry_points = {
+        'qiskit.transpiler.routing': [
+            'toqm = qiskit_toqm:ToqmSwapPlugin',
+        ]
     },
 )
