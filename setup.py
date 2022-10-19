@@ -48,7 +48,7 @@ setup(
     },
     entry_points = {
         'qiskit.transpiler.routing': [
-            'toqm = qiskit_toqm:ToqmSwapPlugin',
+            'toqm = qiskit_toqm.toqm_plugin:ToqmSwapPlugin',
         ]
     },
 )
