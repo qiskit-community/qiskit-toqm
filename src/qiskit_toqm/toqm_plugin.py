@@ -13,7 +13,7 @@ class ToqmSwapPlugin(PassManagerStagePlugin):
             3: ToqmStrategyO3,
         }
 
-        toqm_strategy_preset = opt_level_to_strategy.get(optimization_level, default=ToqmStrategyO3)
+        toqm_strategy_preset = opt_level_to_strategy.get(optimization_level, ToqmStrategyO3)
 
         toqm_latencies = latencies_from_target(
             pass_manager_config.coupling_map,
@@ -39,11 +39,11 @@ class ToqmSwapPlugin(PassManagerStagePlugin):
         translation_pm = common.generate_translation_passmanager(
             pass_manager_config.target,
             pass_manager_config.basis_gates,
-            pass_manager_config.translation_method,
+            pass_manager_config.translation_method or "translator",
             pass_manager_config.approximation_degree,
             pass_manager_config.coupling_map,
             pass_manager_config.backend_properties,
-            pass_manager_config.unitary_synthesis_method,
+            pass_manager_config.unitary_synthesis_method or "default",
             pass_manager_config.unitary_synthesis_plugin_config,
             pass_manager_config.hls_config,
         )
