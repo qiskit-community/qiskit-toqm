@@ -48,5 +48,10 @@ class ToqmSwapPlugin(PassManagerStagePlugin):
             pass_manager_config.hls_config,
         )
 
-        translation_pm += routing_pm
-        return translation_pm
+        out = common.generate_error_on_control_flow(
+            "TOQM routing does not yet support circuits with control flow."
+        )
+        out += translation_pm
+        out += routing_pm
+
+        return out
