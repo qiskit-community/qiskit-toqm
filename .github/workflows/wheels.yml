@@ -41,8 +41,6 @@ jobs:
       with:
         submodules: true
     - uses: pypa/cibuildwheel@v2.3.1
-      env:
-        QISKIT_PARALLEL: ${{ env.QISKIT_PARALLEL }}
     - name: Verify clean directory
       run: git diff --exit-code
       shell: bash
@@ -66,7 +64,6 @@ jobs:
     - uses: pypa/cibuildwheel@v2.3.1
       env:
         CIBW_ARCHS_MACOS: arm64
-        QISKIT_PARALLEL: ${{ env.QISKIT_PARALLEL }}
     - name: Verify clean directory
       run: git diff --exit-code
       shell: bash
@@ -94,7 +91,6 @@ jobs:
     - uses: pypa/cibuildwheel@v2.3.1
       env:
         CIBW_ARCHS_LINUX: aarch64
-        QISKIT_PARALLEL: ${{ env.QISKIT_PARALLEL }}
     - name: Verify clean directory
       run: git diff --exit-code
       shell: bash
@@ -127,7 +123,6 @@ jobs:
     - uses: pypa/cibuildwheel@v2.3.1
       env:
         CIBW_ARCHS_LINUX: ppc64le
-        QISKIT_PARALLEL: ${{ env.QISKIT_PARALLEL }}
     - name: Verify clean directory
       run: git diff --exit-code
       shell: bash
@@ -160,7 +155,6 @@ jobs:
     - uses: pypa/cibuildwheel@v2.3.1
       env:
         CIBW_ARCHS_LINUX: ppc64le
-        QISKIT_PARALLEL: ${{ env.QISKIT_PARALLEL }}
     - name: Verify clean directory
       run: git diff --exit-code
       shell: bash
