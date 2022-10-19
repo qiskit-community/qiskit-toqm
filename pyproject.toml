@@ -13,6 +13,7 @@ build-backend = "setuptools.build_meta"
 profile = "black"
 
 [tool.cibuildwheel]
+environment-pass = ["QISKIT_PARALLEL"]
 manylinux-x86_64-image = "manylinux2014"
 manylinux-i686-image = "manylinux2014"
 test-requires = ["qiskit-terra>=0.19"]
