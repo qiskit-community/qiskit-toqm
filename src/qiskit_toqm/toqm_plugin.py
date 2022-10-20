@@ -28,10 +28,15 @@ class ToqmSwapPlugin(PassManagerStagePlugin):
             strategy=toqm_strategy_preset(toqm_latencies),
         )
 
+        vf2_call_limit = common.get_vf2_call_limit(
+            optimization_level, pass_manager_config.layout_method, pass_manager_config.initial_layout
+        )
+
         routing_pm = common.generate_routing_passmanager(
             routing_pass,
             pass_manager_config.target,
             coupling_map=pass_manager_config.coupling_map,
+            vf2_call_limit=vf2_call_limit,
             seed_transpiler=pass_manager_config.seed_transpiler,
             use_barrier_before_measurement=False,
         )
