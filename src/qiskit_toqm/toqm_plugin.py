@@ -1,3 +1,4 @@
+from qiskit.transpiler import TranspilerError
 from qiskit.transpiler.preset_passmanagers.plugin import PassManagerStagePlugin
 from qiskit.transpiler.preset_passmanagers import common
 from qiskit_toqm import *
@@ -6,6 +7,9 @@ from qiskit_toqm import *
 class ToqmSwapPlugin(PassManagerStagePlugin):
 
     def pass_manager(self, pass_manager_config, optimization_level):
+        if pass_manager_config.initial_layout:
+            raise TranspilerError("Initial layouts are not supported with TOQM-based routing.")
+
         opt_level_to_strategy = {
             0: ToqmStrategyO0,
             1: ToqmStrategyO1,
