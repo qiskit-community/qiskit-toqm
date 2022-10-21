@@ -7,6 +7,9 @@ on:
     branches:
       - main
 
+env:
+  QISKIT_PARALLEL: false
+
 jobs:
   build:
     name: Build with Pip

@@ -10,6 +10,9 @@ on:
     types:
       - published
 
+env:
+  QISKIT_PARALLEL: false
+
 jobs:
   build_sdist:
     name: Build SDist

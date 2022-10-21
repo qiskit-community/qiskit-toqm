@@ -28,6 +28,8 @@ class ToqmStrategyO0:
             latency_descriptions (List[toqm.LatencyDescription]): The latency descriptions
             for all gates that will appear in the circuit, including swaps.
         """
+        # https://github.com/qiskit-toqm/libtoqm/issues/15
+        latency_descriptions = latencies_from_simple(1, 2, 6)
         self.heuristic_strategy = ToqmHeuristicStrategy(
             latency_descriptions,
             top_k=1,
