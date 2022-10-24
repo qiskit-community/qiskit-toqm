@@ -123,6 +123,7 @@ jobs:
     - uses: pypa/cibuildwheel@v2.4.0
       env:
         CIBW_ARCHS_LINUX: ppc64le
+        CIBW_TEST_SKIP: "cp*"
     - name: Verify clean directory
       run: git diff --exit-code
       shell: bash
@@ -154,7 +155,8 @@ jobs:
         platforms: all
     - uses: pypa/cibuildwheel@v2.4.0
       env:
-        CIBW_ARCHS_LINUX: ppc64le
+        CIBW_ARCHS_LINUX: s390x
+        CIBW_TEST_SKIP: "cp*"
     - name: Verify clean directory
       run: git diff --exit-code
       shell: bash
