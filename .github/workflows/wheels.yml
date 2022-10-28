@@ -51,6 +51,7 @@ jobs:
 
   build_wheels_arm64_macos:
     name: Wheels on ${{ matrix.os }}
+    if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -173,6 +174,7 @@ jobs:
     name: Upload if release
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
     steps:
     - uses: actions/setup-python@v2
     - uses: actions/download-artifact@v2
