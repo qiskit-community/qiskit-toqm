@@ -74,6 +74,7 @@ jobs:
 
   build_wheels_arm64_linux:
     name: Wheels on ${{ matrix.os }}
+    if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -105,6 +106,7 @@ jobs:
 
   build_wheels_ppc64le_linux:
     name: Wheels on ${{ matrix.os }}
+    if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -137,6 +139,7 @@ jobs:
 
   build_wheels_s390x_linux:
     name: Wheels on ${{ matrix.os }}
+    if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
