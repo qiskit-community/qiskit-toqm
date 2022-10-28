@@ -46,7 +46,7 @@ setup(
         "Documentation": "https://github.com/kevinhartman/qiskit-toqm",
         "Source Code": "https://github.com/kevinhartman/qiskit-toqm",
     },
-    entry_points = {
+    entry_points={
         'qiskit.transpiler.routing': [
             'toqm = qiskit_toqm.toqm_plugin:ToqmSwapPlugin',
         ]
