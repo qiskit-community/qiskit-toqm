@@ -1,0 +1,55 @@
+name: Randomized tests
+on:
+  pull_request:
+    branches:
+      - 'main'
+  schedule:
+    - cron:  '42 3 * * *'
+  workflow_dispatch:
+jobs:
+  randomized_tests:
+    name: Randomized tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        name: Clone Qiskit TOQM
+        with:
+          path: qiskit-toqm
+          submodules: 'recursive'
+      - name: Install qiskit-toqm
+        run: pip install .
+        working-directory: qiskit-toqm
+      - uses: actions/checkout@v2
+        name: Clone Terra
+        with:
+          repository: qiskit/qiskit-terra
+          ref: main
+          path: qiskit-terra
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: '3.8'
+      - name: Install dependencies
+        working-directory: qiskit-terra
+        run: |
+          pip install -U -r requirements.txt -c constraints.txt
+          pip install -U -r requirements-dev.txt coveralls -c constraints.txt
+          pip install -c constraints.txt -e .
+          pip install "qiskit-ibmq-provider" -c constraints.txt
+          pip install "qiskit-aer"
+      - name: Run randomized tests
+        working-directory: qiskit-terra
+        run: python3 -m unittest discover -s test/randomized -t . -v
+        env:
+          QISKIT_RANDOMIZED_TEST_LAYOUT_METHODS: 'toqm'
+          QISKIT_RANDOMIZED_TEST_ROUTING_METHODS: 'toqm'
+          QISKIT_RANDOMIZED_TEST_BACKEND_NEEDS_DURATIONS: 'True'
+          QISKIT_RANDOMIZED_TEST_ALLOW_BARRIERS: 'False'
+      - name: Create comment on failed test run
+        if: ${{ failure() }}
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: 16
+          body: |
+            Randomized tests failed at commit ${{ github.sha }}.
+            _Logs_: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}.
