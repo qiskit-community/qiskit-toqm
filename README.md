@@ -7,7 +7,7 @@ Qiskit TOQM
 | wheels               | [![Wheels Actions Status][actions-wheels-badge]][actions-wheels-link] |
 
 
-[Qiskit Terra](https://github.com/qiskit/qiskit-terra) transpiler passes for the [Time-Optimal Qubit Mapping](https://doi.org/10.1145/3445814.3446706) (TOQM) algorithm.
+[Qiskit](https://github.com/qiskit/qiskit) transpiler passes for the [Time-Optimal Qubit Mapping](https://doi.org/10.1145/3445814.3446706) (TOQM) algorithm.
 
 [actions-badge]:           https://github.com/qiskit-toqm/qiskit-toqm/workflows/Tests/badge.svg
 [actions-pip-link]:        https://github.com/qiskit-toqm/qiskit-toqm/actions?query=workflow%3APip
