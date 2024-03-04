@@ -1,2 +1,2 @@
-qiskit-terra>=0.22.0
+qiskit>=1.0
 numpy>=1.17

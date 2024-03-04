@@ -2,7 +2,7 @@ import unittest
 
 from qiskit_toqm.toqm_latency import latencies_from_target
 from qiskit.transpiler import CouplingMap, InstructionDurations, TranspilerError
-from qiskit.providers.fake_provider import FakeMontrealV2
+from qiskit_ibm_runtime.fake_provider import FakeMontrealV2
 
 
 class TestBuildLatencyDescriptions(unittest.TestCase):
