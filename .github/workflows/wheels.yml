@@ -12,7 +12,7 @@ on:
 
 env:
   QISKIT_PARALLEL: false
-  CIBW_SKIP: 'pp37-*'
+  CIBW_SKIP: '*p37-*'
 
 jobs:
   build_sdist:
