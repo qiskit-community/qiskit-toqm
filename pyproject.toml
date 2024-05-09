@@ -18,7 +18,7 @@ manylinux-x86_64-image = "manylinux2014"
 manylinux-i686-image = "manylinux2014"
 test-requires = ["qiskit>=1.0"]
 test-skip = "cp310-win32 cp310-manylinux_i686"
-skip = "pp* cp36-* *musllinux*"
+skip = "pp* cp36-* cp37-* *musllinux*"
 test-command = "pytest {project}/test"
 test-extras = ["test"]
 # We need to use pre-built versions of Numpy and Scipy in the tests; they have a
