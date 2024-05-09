@@ -58,7 +58,7 @@ setup(
     cmake_install_dir="src/qiskit_toqm/native",
     install_requires=REQUIREMENTS,
     include_package_data=True,
-    extras_require={"test": ["pytest"]},
+    extras_require={"test": ["pytest", "qiskit-ibm-runtime>=0.20.0"]},
     python_requires=">=3.7",
     project_urls={
         "Bug Tracker": "https://github.com/qiskit-toqm/qiskit-toqm/issues",
